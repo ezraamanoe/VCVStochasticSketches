@@ -66,6 +66,11 @@ struct Palette : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		float clockVoltage = inputs[CLOCK_INPUT].getVoltage();
+		bool clockHigh = clockVoltage >= 1.f;
+
+		outputs[GATE_OUTPUT].setVoltage(clockHigh ? 10.f : 0.f);
+		outputs[PITCH_OUTPUT].setVoltage(0.f);
 	}
 };
 
