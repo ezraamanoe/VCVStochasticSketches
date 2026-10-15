@@ -44,6 +44,38 @@ struct Palette : Module {
 		LIGHTS_LEN
 	};
 
+	dsp::SchmittTrigger clockTrigger;
+	int selectedNote = 0;
+
+	void chooseNote() {
+		const int noteParams[12] = {
+			NOTE_C_PARAM, NOTE_CS_PARAM, NOTE_D_PARAM, NOTE_DS_PARAM,
+			NOTE_E_PARAM, NOTE_F_PARAM, NOTE_FS_PARAM, NOTE_G_PARAM,
+			NOTE_GS_PARAM, NOTE_A_PARAM, NOTE_AS_PARAM, NOTE_B_PARAM
+		};
+
+		float totalWeight = 0.f;
+		for (int note = 0; note < 12; note++) {
+			totalWeight += params[noteParams[note]].getValue();
+		}
+
+		if (totalWeight <= 0.f) {
+			return;
+		}
+
+		float target = random::uniform() * totalWeight;
+		float accumulatedWeight = 0.f;
+
+		for (int note = 0; note < 12; note++) {
+			accumulatedWeight += params[noteParams[note]].getValue();
+
+			if (target <= accumulatedWeight) {
+				selectedNote = note;
+				return;
+			}
+		}
+	}
+
 	Palette() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(DENSITY_PARAM, 0.f, 1.f, 0.f, "");
@@ -69,8 +101,12 @@ struct Palette : Module {
 		float clockVoltage = inputs[CLOCK_INPUT].getVoltage();
 		bool clockHigh = clockVoltage >= 1.f;
 
+		if (clockTrigger.process(clockVoltage)) {
+			chooseNote();
+		}
+
 		outputs[GATE_OUTPUT].setVoltage(clockHigh ? 10.f : 0.f);
-		outputs[PITCH_OUTPUT].setVoltage(0.f);
+		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
 	}
 };
 
