@@ -44,7 +44,7 @@ struct Palette : Module {
 		LIGHTS_LEN
 	};
 
-	dsp::SchmittTrigger clockTrigger;
+	dsp::SchmittTrigger clockTrigger; dsp::SchmittTrigger resetTrigger;
 	int selectedNote = 0;
 
 	void chooseNote() {
@@ -102,6 +102,11 @@ struct Palette : Module {
 	void process(const ProcessArgs& args) override {
 		float clockVoltage = inputs[CLOCK_INPUT].getVoltage();
 		bool clockHigh = clockVoltage >= 1.f;
+
+		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
+			selectedNote = 0;
+			noteActive = false;
+		}
 
 		if (clockTrigger.process(clockVoltage)) {
 			noteActive = random::uniform() < params[DENSITY_PARAM].getValue();
