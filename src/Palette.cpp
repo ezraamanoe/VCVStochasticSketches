@@ -114,9 +114,18 @@ struct Palette : Module {
 		outputs[GATE_OUTPUT].setVoltage(clockHigh && noteActive ? 10.f : 0.f);
 		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
 
-		outputs[GATE_OUTPUT].setVoltage(clockHigh ? 10.f : 0.f);
-		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
-	}
+		const int noteLights[12] = {
+			NOTE_C_LIGHT_LIGHT, NOTE_CS_LIGHT_LIGHT, NOTE_D_LIGHT_LIGHT,
+			NOTE_DS_LIGHT_LIGHT, NOTE_E_LIGHT_LIGHT, NOTE_F_LIGHT_LIGHT,
+			NOTE_FS_LIGHT_LIGHT, NOTE_G_LIGHT_LIGHT, NOTE_GS_LIGHT_LIGHT,
+			NOTE_A_LIGHT_LIGHT, NOTE_AS_LIGHT_LIGHT, NOTE_B_LIGHT_LIGHT
+		};
+
+		for (int note = 0; note < 12; note++) {
+			bool isPlaying = noteActive && clockHigh && selectedNote == note;
+			lights[noteLights[note]].setBrightness(isPlaying ? 1.f : 0.f);
+		}
+			}
 };
 
 struct PaletteArtwork : widget::TransparentWidget {
