@@ -98,11 +98,6 @@ struct PaletteWidget : ModuleWidget {
 		artwork->box.size = box.size;
 		addChildBottom(artwork);
 
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.455, 80.301)), module, Palette::NOTE_CS_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.664, 80.196)), module, Palette::NOTE_DS_PARAM));
