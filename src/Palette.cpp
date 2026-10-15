@@ -183,6 +183,78 @@ struct PaletteSharpKeySlider : app::SvgSlider {
 	}
 };
 
+struct PaletteToneDisplay : widget::TransparentWidget {
+	Palette* module = nullptr;
+
+	PaletteToneDisplay() {
+		box.size = mm2px(Vec(29.f, 14.f));
+	}
+
+	void drawSegment(const DrawArgs& args, int segment, float x, float y, float w, float h, NVGcolor color) {
+		float thickness = h * 0.12f;
+		float verticalLength = h * 0.33f;
+		float horizontalLength = w * 0.58f;
+		float radius = thickness * 0.45f;
+		nvgFillColor(args.vg, color);
+		nvgBeginPath(args.vg);
+		switch (segment) {
+			case 0: nvgRoundedRect(args.vg, x + (w - horizontalLength) / 2.f, y, horizontalLength, thickness, radius); break;
+			case 1: nvgRoundedRect(args.vg, x + w - thickness, y + thickness * 0.75f, thickness, verticalLength, radius); break;
+			case 2: nvgRoundedRect(args.vg, x + w - thickness, y + h - verticalLength - thickness * 0.75f, thickness, verticalLength, radius); break;
+			case 3: nvgRoundedRect(args.vg, x + (w - horizontalLength) / 2.f, y + h - thickness, horizontalLength, thickness, radius); break;
+			case 4: nvgRoundedRect(args.vg, x, y + h - verticalLength - thickness * 0.75f, thickness, verticalLength, radius); break;
+			case 5: nvgRoundedRect(args.vg, x, y + thickness * 0.75f, thickness, verticalLength, radius); break;
+			case 6: nvgRoundedRect(args.vg, x + (w - horizontalLength) / 2.f, y + (h - thickness) / 2.f, horizontalLength, thickness, radius); break;
+		}
+		nvgFill(args.vg);
+	}
+
+	void drawDigit(const DrawArgs& args, char digit, float x, float y, float w, float h) {
+		static const bool digitSegments[10][7] = {
+			{true, true, true, true, true, true, false},
+			{false, true, true, false, false, false, false},
+			{true, true, false, true, true, false, true},
+			{true, true, true, true, false, false, true},
+			{false, true, true, false, false, true, true},
+			{true, false, true, true, false, true, true},
+			{true, false, true, true, true, true, true},
+			{true, true, true, false, false, false, false},
+			{true, true, true, true, true, true, true},
+			{true, true, true, true, false, true, true}
+		};
+
+		const NVGcolor on = nvgRGB(0x9d, 0xff, 0xc5);
+		const NVGcolor off = nvgRGB(0x0a, 0x55, 0x3a);
+		for (int segment = 0; segment < 7; segment++) {
+			bool active = digit >= '0' && digit <= '9' && digitSegments[digit - '0'][segment];
+			
+			if (digit == '-') {
+				active = segment == 6;
+			}
+			drawSegment(args, segment, x, y, w, h, active ? on : off);
+		}
+	}
+
+	void draw(const DrawArgs& args) override {
+		const NVGcolor face = nvgRGB(0x03, 0x3f, 0x2b);
+		nvgBeginPath(args.vg);
+		nvgRoundedRect(args.vg, 0.f, 0.f, box.size.x, box.size.y, mm2px(1.f));
+		nvgFillColor(args.vg, face);
+		nvgFill(args.vg);
+
+		int tone = module && module->noteActive ? module->selectedNote : -1;
+		std::string value = tone >= 0 ? string::f("%03d", tone + 1) : "---";
+		float digitWidth = box.size.x * 0.20f;
+		float digitHeight = box.size.y * 0.62f;
+		float gap = box.size.x * 0.055f;
+		float startX = (box.size.x - (digitWidth * 3.f + gap * 2.f)) / 2.f;
+		float startY = (box.size.y - digitHeight) / 2.f;
+		for (int digit = 0; digit < 3; digit++) {
+			drawDigit(args, value[digit], startX + digit * (digitWidth + gap), startY, digitWidth, digitHeight);
+		}
+	}
+};
+
 struct PaletteWidget : ModuleWidget {
 	PaletteWidget(Palette* module) {
 		setModule(module);
@@ -226,8 +298,12 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(41.898, 56.26)), module, Palette::NOTE_C_LIGHT_LIGHT));
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.959, 56.26)), module, Palette::NOTE_CS_LIGHT_LIGHT));
 
-		// mm2px(Vec(27.656, 12.169))
-		addChild(createWidget<Widget>(mm2px(Vec(2.66, 29.766))));
+		auto* toneDisplay = createWidget<PaletteToneDisplay>(
+			mm2px(Vec(2.66f, 29.766f))
+		);
+		toneDisplay->box.size = mm2px(Vec(27.656f, 12.169f));
+		toneDisplay->module = module;
+		addChild(toneDisplay);
 	}
 };
 
