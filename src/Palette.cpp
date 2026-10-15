@@ -44,10 +44,14 @@ struct Palette : Module {
 		LIGHTS_LEN
 	};
 
-	dsp::SchmittTrigger clockTrigger; dsp::SchmittTrigger resetTrigger;
-	int selectedNote = 0;
+	static constexpr int MAX_VOICES = 16;
 
-	void chooseNote() {
+	dsp::SchmittTrigger clockTriggers[MAX_VOICES];
+	dsp::SchmittTrigger resetTriggers[MAX_VOICES];
+	int selectedNotes[MAX_VOICES] = {};
+	bool noteActive[MAX_VOICES] = {};
+
+	void chooseNote(int voice) {
 		const int noteParams[12] = {
 			NOTE_C_PARAM, NOTE_CS_PARAM, NOTE_D_PARAM, NOTE_DS_PARAM,
 			NOTE_E_PARAM, NOTE_F_PARAM, NOTE_FS_PARAM, NOTE_G_PARAM,
@@ -70,13 +74,11 @@ struct Palette : Module {
 			accumulatedWeight += params[noteParams[note]].getValue();
 
 			if (target <= accumulatedWeight) {
-				selectedNote = note;
+				selectedNotes[voice] = note;
 				return;
 			}
 		}
 	}
-
-	bool noteActive = false;
 
 	Palette() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -100,24 +102,56 @@ struct Palette : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-		float clockVoltage = inputs[CLOCK_INPUT].getVoltage();
-		bool clockHigh = clockVoltage >= 1.f;
-
-		if (resetTrigger.process(inputs[RESET_INPUT].getVoltage())) {
-			selectedNote = 0;
-			noteActive = false;
+		int channels = inputs[CLOCK_INPUT].getChannels();
+		if (channels < 1) {
+			channels = 1;
 		}
 
-		if (clockTrigger.process(clockVoltage)) {
-			noteActive = random::uniform() < params[DENSITY_PARAM].getValue();
+		outputs[PITCH_OUTPUT].setChannels(channels);
+		outputs[GATE_OUTPUT].setChannels(channels);
 
-			if (noteActive) {
-				chooseNote();
+		bool voiceZeroClockHigh = false;
+
+		for (int voice = 0; voice < channels; voice++) {
+			float clockVoltage = inputs[CLOCK_INPUT].getVoltage(voice);
+			bool clockHigh = clockVoltage >= 1.f;
+
+			if (voice == 0) {
+				voiceZeroClockHigh = clockHigh;
 			}
-		}
 
-		outputs[GATE_OUTPUT].setVoltage(clockHigh && noteActive ? 10.f : 0.f);
-		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
+			int resetChannels = inputs[RESET_INPUT].getChannels();
+			float resetVoltage = 0.f;
+
+			if (resetChannels == 1) {
+				resetVoltage = inputs[RESET_INPUT].getVoltage(0);
+			}
+			else if (voice < resetChannels) {
+				resetVoltage = inputs[RESET_INPUT].getVoltage(voice);
+			}
+
+			if (resetTriggers[voice].process(resetVoltage)) {
+				selectedNotes[voice] = 0;
+				noteActive[voice] = false;
+			}
+
+			if (clockTriggers[voice].process(clockVoltage)) {
+				noteActive[voice] = random::uniform() < params[DENSITY_PARAM].getValue();
+
+				if (noteActive[voice]) {
+					chooseNote(voice);
+				}
+			}
+
+			outputs[GATE_OUTPUT].setVoltage(
+				clockHigh && noteActive[voice] ? 10.f : 0.f,
+				voice
+			);
+			outputs[PITCH_OUTPUT].setVoltage(
+				selectedNotes[voice] / 12.f,
+				voice
+			);
+		}
 
 		const int noteLights[12] = {
 			NOTE_C_LIGHT_LIGHT, NOTE_CS_LIGHT_LIGHT, NOTE_D_LIGHT_LIGHT,
@@ -127,10 +161,11 @@ struct Palette : Module {
 		};
 
 		for (int note = 0; note < 12; note++) {
-			bool isPlaying = noteActive && clockHigh && selectedNote == note;
+			bool isPlaying = noteActive[0] && voiceZeroClockHigh
+				&& selectedNotes[0] == note;
 			lights[noteLights[note]].setBrightness(isPlaying ? 1.f : 0.f);
 		}
-			}
+	}
 };
 
 struct PaletteArtwork : widget::TransparentWidget {
@@ -247,7 +282,7 @@ struct PaletteToneDisplay : widget::TransparentWidget {
 		nvgFillColor(args.vg, face);
 		nvgFill(args.vg);
 
-		int tone = module && module->noteActive ? module->selectedNote : -1;
+		int tone = module && module->noteActive[0] ? module->selectedNotes[0] : -1;
 		std::string value = tone >= 0 ? string::f("%03d", tone + 1) : "---";
 		float digitWidth = box.size.x * 0.20f;
 		float digitHeight = box.size.y * 0.62f;
