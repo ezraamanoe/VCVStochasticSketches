@@ -1,0 +1,16 @@
+{
+  "slug": "VCVStochasticSketches",
+  "name": "Stochastic Sketches",
+  "version": "2.0.0",
+  "license": "MIT",
+  "brand": "Stochastic Sketches",
+  "author": "Ezra Manoe",
+  "authorEmail": "ezramanoe59@gmail.com",
+  "authorUrl": "ezra.work",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": []
+}
