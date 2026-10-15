@@ -213,18 +213,18 @@ struct PaletteWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.427, 72.36)), module, Palette::PITCH_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.427, 87.567)), module, Palette::GATE_OUTPUT));
 
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(87.718, 41.981)), module, Palette::NOTE_B_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(83.19, 44.467)), module, Palette::NOTE_AS_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(80.048, 44.545)), module, Palette::NOTE_A_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(71.983, 47.375)), module, Palette::NOTE_G_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(74.995, 47.403)), module, Palette::NOTE_GS_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(66.644, 50.19)), module, Palette::NOTE_FS_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(63.634, 50.269)), module, Palette::NOTE_F_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(59.905, 52.945)), module, Palette::NOTE_E_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(53.676, 54.812)), module, Palette::NOTE_DS_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(50.585, 54.845)), module, Palette::NOTE_D_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(41.898, 56.26)), module, Palette::NOTE_C_LIGHT_LIGHT));
-		addChild(createLightCentered<SmallLight<RedLight>>(mm2px(Vec(44.959, 56.26)), module, Palette::NOTE_CS_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(87.718, 41.981)), module, Palette::NOTE_B_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(83.19, 44.467)), module, Palette::NOTE_AS_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(80.048, 44.545)), module, Palette::NOTE_A_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(71.983, 47.375)), module, Palette::NOTE_G_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(74.995, 47.403)), module, Palette::NOTE_GS_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(66.644, 50.19)), module, Palette::NOTE_FS_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(63.634, 50.269)), module, Palette::NOTE_F_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(59.905, 52.945)), module, Palette::NOTE_E_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(53.676, 54.812)), module, Palette::NOTE_DS_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(50.585, 54.845)), module, Palette::NOTE_D_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(41.898, 56.26)), module, Palette::NOTE_C_LIGHT_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.959, 56.26)), module, Palette::NOTE_CS_LIGHT_LIGHT));
 
 		// mm2px(Vec(27.656, 12.169))
 		addChild(createWidget<Widget>(mm2px(Vec(2.66, 29.766))));
