@@ -69,11 +69,34 @@ struct Palette : Module {
 	}
 };
 
+struct PaletteArtwork : widget::TransparentWidget {
+	std::string imagePath;
+
+	PaletteArtwork() {
+		imagePath = asset::plugin(pluginInstance, "res/PaletteBase.png");
+	}
+
+	void draw(const DrawArgs& args) override {
+		auto image = APP->window->loadImage(imagePath);
+		if (!image || image->handle < 0) {
+			return;
+		}
+
+		nvgBeginPath(args.vg);
+		nvgRect(args.vg, 0.f, 0.f, box.size.x, box.size.y);
+		nvgFillPaint(args.vg, nvgImagePattern(
+			args.vg, 0.f, 0.f, box.size.x, box.size.y, 0.f, image->handle, 1.f));
+		nvgFill(args.vg);
+	}
+};
 
 struct PaletteWidget : ModuleWidget {
 	PaletteWidget(Palette* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Palette.svg")));
+		auto* artwork = new PaletteArtwork;
+		artwork->box.size = box.size;
+		addChildBottom(artwork);
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
