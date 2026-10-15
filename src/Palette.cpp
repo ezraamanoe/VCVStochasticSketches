@@ -76,9 +76,11 @@ struct Palette : Module {
 		}
 	}
 
+	bool noteActive = false;
+
 	Palette() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		configParam(DENSITY_PARAM, 0.f, 1.f, 0.f, "");
+		configParam(DENSITY_PARAM, 0.f, 1.f, 1.f, "Density");
 		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "");
@@ -102,8 +104,15 @@ struct Palette : Module {
 		bool clockHigh = clockVoltage >= 1.f;
 
 		if (clockTrigger.process(clockVoltage)) {
-			chooseNote();
+			noteActive = random::uniform() < params[DENSITY_PARAM].getValue();
+
+			if (noteActive) {
+				chooseNote();
+			}
 		}
+
+		outputs[GATE_OUTPUT].setVoltage(clockHigh && noteActive ? 10.f : 0.f);
+		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
 
 		outputs[GATE_OUTPUT].setVoltage(clockHigh ? 10.f : 0.f);
 		outputs[PITCH_OUTPUT].setVoltage(selectedNote / 12.f);
