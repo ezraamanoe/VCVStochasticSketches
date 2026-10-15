@@ -12,5 +12,12 @@
   "sourceUrl": "",
   "donateUrl": "",
   "changelogUrl": "",
-  "modules": []
+  "modules": [
+    {
+      "slug": "Palette",
+      "name": "Palette",
+      "description": "A polyphonic stochastic sequencer that generates weighted random pitches and gates from an external clock",
+      "tags": []
+    }
+  ]
 }
