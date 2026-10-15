@@ -90,6 +90,16 @@ struct PaletteArtwork : widget::TransparentWidget {
 	}
 };
 
+struct PaletteDensityKnob : app::SvgKnob {
+	PaletteDensityKnob() {
+		minAngle = -0.83f * M_PI;
+		maxAngle = 0.83f * M_PI;
+		setSvg(window::Svg::load(
+			asset::plugin(pluginInstance, "res/PaletteDensityKnob.svg")
+		));
+	}
+};
+
 struct PaletteWidget : ModuleWidget {
 	PaletteWidget(Palette* module) {
 		setModule(module);
@@ -98,7 +108,7 @@ struct PaletteWidget : ModuleWidget {
 		artwork->box.size = box.size;
 		addChildBottom(artwork);
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
+		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.455, 80.301)), module, Palette::NOTE_CS_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.664, 80.196)), module, Palette::NOTE_DS_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(46.082, 80.196)), module, Palette::NOTE_FS_PARAM));
