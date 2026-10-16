@@ -303,6 +303,11 @@ struct PaletteWidget : ModuleWidget {
 		artwork->box.size = box.size;
 		addChildBottom(artwork);
 
+		addChild(createWidget<ScrewSilver>(Vec(5, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 20, 0)));
+		addChild(createWidget<ScrewSilver>(Vec(5, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 20, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
 
 		addParam(createParamCentered<PaletteSharpKeySlider>(mm2px(Vec(12.455, 80.301)), module, Palette::NOTE_CS_PARAM));
