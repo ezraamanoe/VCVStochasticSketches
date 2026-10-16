@@ -38,9 +38,9 @@ Palette uses its own seeded random generator rather than Rack's shared random so
 
 ## Trial patch: seeded Cmaj9
 
-<img width="895" height="363" alt="image" src="https://github.com/user-attachments/assets/a1bf044c-dbfc-4f6c-9730-58304928800b" />
+[!Palette](https://giphy.com/gifs/B2OYn2zeNNnOTzkYbB)
 
-This patch demonstrates weighted selection, Density, Seed, and Reset using only stock VCV modules.
+This patch demonstrates weighted selection, density, seed, and polyphony.
 
 - Set **density** fully clockwise.
 - Set the C, D, E, G, and B sliders high; set every other note slider to zero.
