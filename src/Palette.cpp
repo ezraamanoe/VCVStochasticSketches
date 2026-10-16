@@ -1,5 +1,5 @@
 #include "plugin.hpp"
-
+#include <cmath>
 
 struct Palette : Module {
 	enum ParamId {
@@ -85,6 +85,7 @@ struct Palette : Module {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(DENSITY_PARAM, 0.f, 1.f, 1.f, "Density");
 		configParam(SEED_PARAM, 1.f, 999.f, 1.f, "Seed");
+		getParamQuantity(SEED_PARAM)->snapEnabled = true;
 		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "");
@@ -225,10 +226,10 @@ struct PaletteSharpKeySlider : app::SvgSlider {
 	}
 };
 
-struct PaletteToneDisplay : widget::TransparentWidget {
+struct PaletteSeedDisplay : widget::TransparentWidget {
 	Palette* module = nullptr;
 
-	PaletteToneDisplay() {
+	PaletteSeedDisplay() {
 		box.size = mm2px(Vec(29.f, 14.f));
 	}
 
@@ -284,8 +285,9 @@ struct PaletteToneDisplay : widget::TransparentWidget {
 		nvgFillColor(args.vg, face);
 		nvgFill(args.vg);
 
-		int tone = module && module->noteActive[0] ? module->selectedNotes[0] : -1;
-		std::string value = tone >= 0 ? string::f("%03d", tone + 1) : "---";
+		int seed = module ? static_cast<int>(std::round(module->params[Palette::SEED_PARAM].getValue())) : -1;
+		std::string value = seed >= 0 ? string::f("%03d", seed) : "---";
+
 		float digitWidth = box.size.x * 0.20f;
 		float digitHeight = box.size.y * 0.62f;
 		float gap = box.size.x * 0.055f;
@@ -346,12 +348,12 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(41.898, 56.26)), module, Palette::NOTE_C_LIGHT_LIGHT));
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.959, 56.26)), module, Palette::NOTE_CS_LIGHT_LIGHT));
 
-		auto* toneDisplay = createWidget<PaletteToneDisplay>(
+		auto* seedDisplay = createWidget<PaletteSeedDisplay>(
 			mm2px(Vec(2.66f, 29.766f))
 		);
-		toneDisplay->box.size = mm2px(Vec(27.656f, 12.169f));
-		toneDisplay->module = module;
-		addChild(toneDisplay);
+		seedDisplay->box.size = mm2px(Vec(27.656f, 12.169f));
+		seedDisplay->module = module;
+		addChild(seedDisplay);
 	}
 };
 
