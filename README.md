@@ -36,7 +36,7 @@ The sliders are weights, not on/off switches: a higher slider makes that note mo
 
 Palette uses its own seeded random generator rather than Rack's shared random source. With the same Seed, clock pattern, density, note weights, and Reset points, it produces the same sequence again. This makes chance-based ideas repeatable, comparable, and usable in a musical performance.
 
-## Trial patch: seeded Cmaj9
+### Demo patch: seeded Cmaj9
 
 https://github.com/user-attachments/assets/26d0c601-b079-45b7-bcfa-b4fc4b3a98ee
 
