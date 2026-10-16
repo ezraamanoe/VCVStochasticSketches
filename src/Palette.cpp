@@ -112,22 +112,22 @@ struct Palette : Module {
 		configParam(DENSITY_PARAM, 0.f, 1.f, 1.f, "Density");
 		configParam(SEED_PARAM, 1.f, 999.f, 1.f, "Seed");
 		getParamQuantity(SEED_PARAM)->snapEnabled = true;
-		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_GS_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_AS_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_C_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_D_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_E_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_F_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_G_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_A_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(NOTE_B_PARAM, 0.f, 1.f, 0.f, "");
-		configInput(CLOCK_INPUT, "");
-		configInput(RESET_INPUT, "");
-		configOutput(PITCH_OUTPUT, "");
-		configOutput(GATE_OUTPUT, "");
+		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "C#");
+		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "D#");
+		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "F#");
+		configParam(NOTE_GS_PARAM, 0.f, 1.f, 0.f, "G#");
+		configParam(NOTE_AS_PARAM, 0.f, 1.f, 0.f, "A#");
+		configParam(NOTE_C_PARAM, 0.f, 1.f, 0.f, "C");
+		configParam(NOTE_D_PARAM, 0.f, 1.f, 0.f, "D");
+		configParam(NOTE_E_PARAM, 0.f, 1.f, 0.f, "E");
+		configParam(NOTE_F_PARAM, 0.f, 1.f, 0.f, "F");
+		configParam(NOTE_G_PARAM, 0.f, 1.f, 0.f, "G");
+		configParam(NOTE_A_PARAM, 0.f, 1.f, 0.f, "A");
+		configParam(NOTE_B_PARAM, 0.f, 1.f, 0.f, "B");
+		configInput(CLOCK_INPUT, "Clock");
+		configInput(RESET_INPUT, "Reset");
+		configOutput(PITCH_OUTPUT, "Pitch (1 V/oct)");
+		configOutput(GATE_OUTPUT, "Gate");
 	}
 
 	void process(const ProcessArgs& args) override {
