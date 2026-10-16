@@ -4,6 +4,7 @@
 struct Palette : Module {
 	enum ParamId {
 		DENSITY_PARAM,
+		SEED_PARAM,
 		NOTE_CS_PARAM,
 		NOTE_DS_PARAM,
 		NOTE_FS_PARAM,
@@ -83,6 +84,7 @@ struct Palette : Module {
 	Palette() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(DENSITY_PARAM, 0.f, 1.f, 1.f, "Density");
+		configParam(SEED_PARAM, 1.f, 999.f, 1.f, "Seed");
 		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "");
@@ -309,6 +311,7 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 20, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
+		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(9.163f, 48.961f)), module, Palette::SEED_PARAM));
 
 		addParam(createParamCentered<PaletteSharpKeySlider>(mm2px(Vec(12.455, 80.301)), module, Palette::NOTE_CS_PARAM));
 		addParam(createParamCentered<PaletteSharpKeySlider>(mm2px(Vec(23.664, 80.196)), module, Palette::NOTE_DS_PARAM));
