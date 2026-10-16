@@ -38,7 +38,7 @@ Palette uses its own seeded random generator rather than Rack's shared random so
 
 ## Trial patch: seeded Cmaj9
 
-[!Palette](https://giphy.com/gifs/B2OYn2zeNNnOTzkYbB)
+<img width="1065" height="387" alt="image" src="https://github.com/user-attachments/assets/8ca26ae6-e8ee-49d5-99bc-4a7f060c466f" />
 
 This patch demonstrates weighted selection, density, seed, and polyphony.
 
