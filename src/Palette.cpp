@@ -1,9 +1,10 @@
 #include "plugin.hpp"
-
+#include <cmath>
 
 struct Palette : Module {
 	enum ParamId {
 		DENSITY_PARAM,
+		SEED_PARAM,
 		NOTE_CS_PARAM,
 		NOTE_DS_PARAM,
 		NOTE_FS_PARAM,
@@ -50,6 +51,32 @@ struct Palette : Module {
 	dsp::SchmittTrigger resetTriggers[MAX_VOICES];
 	int selectedNotes[MAX_VOICES] = {};
 	bool noteActive[MAX_VOICES] = {};
+	random::Xoroshiro128Plus rngs[MAX_VOICES];
+	int currentSeed = -1;
+	
+	float nextUniform(int voice) {
+		// Converts this voice's random number into a value from 0.0 to < 1.0.
+		return static_cast<float>(rngs[voice]() >> 40) * (1.f / 16777216.f);
+	}
+	
+	void reseedVoice(int voice, int seed) {
+		uint64_t baseSeed = static_cast<uint64_t>(seed);
+		uint64_t voiceNumber = static_cast<uint64_t>(voice + 1);
+	
+		rngs[voice].seed(
+			baseSeed + 0x9e3779b97f4a7c15ULL * voiceNumber,
+			(baseSeed ^ 0xd1b54a32d192ed03ULL)
+				+ 0x94d049bb133111ebULL * voiceNumber
+		);
+	}
+	
+	void reseedAll(int seed) {
+		for (int voice = 0; voice < MAX_VOICES; voice++) {
+			reseedVoice(voice, seed);
+			selectedNotes[voice] = 0;
+			noteActive[voice] = false;
+		}
+	}
 
 	void chooseNote(int voice) {
 		const int noteParams[12] = {
@@ -67,7 +94,7 @@ struct Palette : Module {
 			return;
 		}
 
-		float target = random::uniform() * totalWeight;
+		float target = nextUniform(voice) * totalWeight;
 		float accumulatedWeight = 0.f;
 
 		for (int note = 0; note < 12; note++) {
@@ -83,6 +110,8 @@ struct Palette : Module {
 	Palette() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam(DENSITY_PARAM, 0.f, 1.f, 1.f, "Density");
+		configParam(SEED_PARAM, 1.f, 999.f, 1.f, "Seed");
+		getParamQuantity(SEED_PARAM)->snapEnabled = true;
 		configParam(NOTE_CS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_DS_PARAM, 0.f, 1.f, 0.f, "");
 		configParam(NOTE_FS_PARAM, 0.f, 1.f, 0.f, "");
@@ -102,6 +131,13 @@ struct Palette : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		int seed = static_cast<int>(std::round(params[SEED_PARAM].getValue()));
+
+		if (seed != currentSeed) {
+		currentSeed = seed;
+		reseedAll(seed);
+		}
+
 		int channels = inputs[CLOCK_INPUT].getChannels();
 		if (channels < 1) {
 			channels = 1;
@@ -131,12 +167,13 @@ struct Palette : Module {
 			}
 
 			if (resetTriggers[voice].process(resetVoltage)) {
+				reseedVoice(voice, currentSeed);
 				selectedNotes[voice] = 0;
 				noteActive[voice] = false;
 			}
 
 			if (clockTriggers[voice].process(clockVoltage)) {
-				noteActive[voice] = random::uniform() < params[DENSITY_PARAM].getValue();
+				noteActive[voice] = nextUniform(voice) < params[DENSITY_PARAM].getValue();
 
 				if (noteActive[voice]) {
 					chooseNote(voice);
@@ -223,10 +260,10 @@ struct PaletteSharpKeySlider : app::SvgSlider {
 	}
 };
 
-struct PaletteToneDisplay : widget::TransparentWidget {
+struct PaletteSeedDisplay : widget::TransparentWidget {
 	Palette* module = nullptr;
 
-	PaletteToneDisplay() {
+	PaletteSeedDisplay() {
 		box.size = mm2px(Vec(29.f, 14.f));
 	}
 
@@ -282,8 +319,9 @@ struct PaletteToneDisplay : widget::TransparentWidget {
 		nvgFillColor(args.vg, face);
 		nvgFill(args.vg);
 
-		int tone = module && module->noteActive[0] ? module->selectedNotes[0] : -1;
-		std::string value = tone >= 0 ? string::f("%03d", tone + 1) : "---";
+		int seed = module ? static_cast<int>(std::round(module->params[Palette::SEED_PARAM].getValue())) : -1;
+		std::string value = seed >= 0 ? string::f("%03d", seed) : "---";
+
 		float digitWidth = box.size.x * 0.20f;
 		float digitHeight = box.size.y * 0.62f;
 		float gap = box.size.x * 0.055f;
@@ -309,6 +347,7 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 20, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(24.257, 48.873)), module, Palette::DENSITY_PARAM));
+		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(9.163f, 48.961f)), module, Palette::SEED_PARAM));
 
 		addParam(createParamCentered<PaletteSharpKeySlider>(mm2px(Vec(12.455, 80.301)), module, Palette::NOTE_CS_PARAM));
 		addParam(createParamCentered<PaletteSharpKeySlider>(mm2px(Vec(23.664, 80.196)), module, Palette::NOTE_DS_PARAM));
@@ -343,14 +382,13 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(41.898, 56.26)), module, Palette::NOTE_C_LIGHT_LIGHT));
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.959, 56.26)), module, Palette::NOTE_CS_LIGHT_LIGHT));
 
-		auto* toneDisplay = createWidget<PaletteToneDisplay>(
+		auto* seedDisplay = createWidget<PaletteSeedDisplay>(
 			mm2px(Vec(2.66f, 29.766f))
 		);
-		toneDisplay->box.size = mm2px(Vec(27.656f, 12.169f));
-		toneDisplay->module = module;
-		addChild(toneDisplay);
+		seedDisplay->box.size = mm2px(Vec(27.656f, 12.169f));
+		seedDisplay->module = module;
+		addChild(seedDisplay);
 	}
 };
-
 
 Model* modelPalette = createModel<Palette, PaletteWidget>("Palette");
