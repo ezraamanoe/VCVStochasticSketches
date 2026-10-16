@@ -51,6 +51,32 @@ struct Palette : Module {
 	dsp::SchmittTrigger resetTriggers[MAX_VOICES];
 	int selectedNotes[MAX_VOICES] = {};
 	bool noteActive[MAX_VOICES] = {};
+	random::Xoroshiro128Plus rngs[MAX_VOICES];
+	int currentSeed = -1;
+	
+	float nextUniform(int voice) {
+		// Converts this voice's random number into a value from 0.0 to < 1.0.
+		return static_cast<float>(rngs[voice]() >> 40) * (1.f / 16777216.f);
+	}
+	
+	void reseedVoice(int voice, int seed) {
+		uint64_t baseSeed = static_cast<uint64_t>(seed);
+		uint64_t voiceNumber = static_cast<uint64_t>(voice + 1);
+	
+		rngs[voice].seed(
+			baseSeed + 0x9e3779b97f4a7c15ULL * voiceNumber,
+			(baseSeed ^ 0xd1b54a32d192ed03ULL)
+				+ 0x94d049bb133111ebULL * voiceNumber
+		);
+	}
+	
+	void reseedAll(int seed) {
+		for (int voice = 0; voice < MAX_VOICES; voice++) {
+			reseedVoice(voice, seed);
+			selectedNotes[voice] = 0;
+			noteActive[voice] = false;
+		}
+	}
 
 	void chooseNote(int voice) {
 		const int noteParams[12] = {
@@ -68,7 +94,7 @@ struct Palette : Module {
 			return;
 		}
 
-		float target = random::uniform() * totalWeight;
+		float target = nextUniform(voice) * totalWeight;
 		float accumulatedWeight = 0.f;
 
 		for (int note = 0; note < 12; note++) {
@@ -105,6 +131,13 @@ struct Palette : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		int seed = static_cast<int>(std::round(params[SEED_PARAM].getValue()));
+
+		if (seed != currentSeed) {
+		currentSeed = seed;
+		reseedAll(seed);
+		}
+
 		int channels = inputs[CLOCK_INPUT].getChannels();
 		if (channels < 1) {
 			channels = 1;
@@ -134,12 +167,13 @@ struct Palette : Module {
 			}
 
 			if (resetTriggers[voice].process(resetVoltage)) {
+				reseedVoice(voice, currentSeed);
 				selectedNotes[voice] = 0;
 				noteActive[voice] = false;
 			}
 
 			if (clockTriggers[voice].process(clockVoltage)) {
-				noteActive[voice] = random::uniform() < params[DENSITY_PARAM].getValue();
+				noteActive[voice] = nextUniform(voice) < params[DENSITY_PARAM].getValue();
 
 				if (noteActive[voice]) {
 					chooseNote(voice);
@@ -356,6 +390,5 @@ struct PaletteWidget : ModuleWidget {
 		addChild(seedDisplay);
 	}
 };
-
 
 Model* modelPalette = createModel<Palette, PaletteWidget>("Palette");
