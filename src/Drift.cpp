@@ -8,7 +8,7 @@ struct Drift : Module {
 		RECALL_PARAM,
 		MODE_PARAM,
 		LENGTH_PARAM,
-		DRIFT_PARAM_PARAM,
+		DRIFT_PARAM,
 		OCTAVES_PARAM,
 		SEED_PARAM,
 		PARAMS_LEN
@@ -49,6 +49,14 @@ struct Drift : Module {
 	float capturedPitch[PORT_MAX_CHANNELS][kMaxSteps] = {};
 	bool capturedGate[PORT_MAX_CHANNELS][kMaxSteps] = {};
 
+	// This is the phrase that Drift actually plays and will later mutate.
+	float workingPitch[PORT_MAX_CHANNELS][kMaxSteps] = {};
+	bool workingGate[PORT_MAX_CHANNELS][kMaxSteps] = {};
+
+	random::Xoroshiro128Plus rngs[PORT_MAX_CHANNELS];
+	dsp::PulseGenerator changePulses[PORT_MAX_CHANNELS];
+	int currentSeed = -1;
+
 	int phraseLength[PORT_MAX_CHANNELS] = {};
 	int captureStep[PORT_MAX_CHANNELS] = {};
 	int playbackStep[PORT_MAX_CHANNELS] = {};
@@ -84,7 +92,7 @@ struct Drift : Module {
 		});
 		configParam(LENGTH_PARAM, 1.f, 8.f, 8.f, "Capture length", " steps");
 		getParamQuantity(LENGTH_PARAM)->snapEnabled = true;
-		configParam(DRIFT_PARAM_PARAM, 0.f, 1.f, 0.25f, "Mutation chance", "%", 0.f, 100.f);
+		configParam(DRIFT_PARAM, 0.f, 1.f, 0.25f, "Mutation chance", "%", 0.f, 100.f);
 		configParam(OCTAVES_PARAM, 0.f, 2.f, 1.f, "Maximum octave jump", " octaves");
 		getParamQuantity(OCTAVES_PARAM)->snapEnabled = true;
 		configParam(SEED_PARAM, 1.f, 999.f, 1.f, "Seed");
@@ -118,6 +126,95 @@ struct Drift : Module {
 		);
 	}
 
+	static uint64_t mixSeed(uint64_t value) {
+		value += 0x9e3779b97f4a7c15ULL;
+		value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
+		value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
+		return value ^ (value >> 31);
+	}
+
+	void reseedVoice(int channel, int seed) {
+		uint64_t source = static_cast<uint64_t>(seed)
+			+ static_cast<uint64_t>(channel) * 0x9e3779b9ULL;
+
+		rngs[channel].seed(
+			mixSeed(source),
+			mixSeed(source + 0x6a09e667f3bcc909ULL)
+		);
+	}
+
+	void reseedAll(int seed) {
+		for (int channel = 0; channel < PORT_MAX_CHANNELS; channel++) {
+			reseedVoice(channel, seed);
+		}
+	}
+
+	float nextUniform(int channel) {
+		return static_cast<float>(rngs[channel]() >> 40)
+			* (1.f / 16777216.f);
+	}
+
+	void recallVoice(int channel) {
+		if (!phraseReady[channel]) {
+			return;
+		}
+
+		for (int step = 0; step < phraseLength[channel]; step++) {
+			workingPitch[channel][step] = capturedPitch[channel][step];
+			workingGate[channel][step] = capturedGate[channel][step];
+		}
+
+		playbackStep[channel] = 0;
+		currentStep[channel] = -1;
+		heldGate[channel] = false;
+
+		reseedVoice(channel, currentSeed);
+	}
+
+	void mutateOctave(int channel) {
+		if (!phraseReady[channel])
+			return;
+
+		float chance = params[DRIFT_PARAM].getValue()
+			+ inputVoltage(DRIFT_CV_INPUT, channel) / 10.f;
+		chance = clamp(chance, 0.f, 1.f);
+
+		// No mutation this time.
+		if (nextUniform(channel) >= chance)
+			return;
+
+		// Pick one active step from the phrase.
+		int activeSteps[8];
+		int activeCount = 0;
+
+		for (int step = 0; step < phraseLength[channel]; step++) {
+			if (workingGate[channel][step]) {
+				activeSteps[activeCount++] = step;
+			}
+		}
+
+		if (activeCount == 0)
+			return;
+
+		int chosenStep = activeSteps[
+			std::min((int) (nextUniform(channel) * activeCount), activeCount - 1)
+		];
+
+		int maxOctaves = (int) std::round(params[OCTAVES_PARAM].getValue());
+		if (maxOctaves <= 0)
+			return;
+
+		int direction = nextUniform(channel) < 0.5f ? -1 : 1;
+		int amount = 1 + std::min(
+			(int) (nextUniform(channel) * maxOctaves),
+			maxOctaves - 1
+		);
+
+		workingPitch[channel][chosenStep] += direction * amount;
+
+		changePulses[channel].trigger(1e-3f);
+	}
+
 	void process(const ProcessArgs& args) override {
 		int channels = std::max(
 			1,
@@ -141,6 +238,13 @@ struct Drift : Module {
 				static_cast<int>(std::round(params[LENGTH_PARAM].getValue()))
 			)
 		);
+
+		int seed = static_cast<int>(std::round(params[SEED_PARAM].getValue()));
+
+		if (seed != currentSeed) {
+			currentSeed = seed;
+			reseedAll(seed);
+		}
 	
 		// Capture arms every possible polyphonic voice. Each active voice begins
 		// recording on its own next clock edge.
@@ -150,12 +254,9 @@ struct Drift : Module {
 			}
 		}
 	
-		// For now Recall simply rewinds the stored phrase. Later, once mutation
-		// exists, it will also restore the untouched original phrase.
 		if (recallTrigger.process(params[RECALL_PARAM].getValue())) {
 			for (int channel = 0; channel < PORT_MAX_CHANNELS; channel++) {
-				playbackStep[channel] = 0;
-				currentStep[channel] = -1;
+				recallVoice(channel);
 			}
 		}
 	
@@ -202,6 +303,9 @@ struct Drift : Module {
 	
 				capturedPitch[channel][step] = capturePitch[channel];
 				capturedGate[channel][step] = captureGateSeen[channel];
+
+				workingPitch[channel][step] = capturePitch[channel];
+				workingGate[channel][step] = captureGateSeen[channel];
 	
 				captureStep[channel]++;
 	
@@ -210,6 +314,7 @@ struct Drift : Module {
 					phraseReady[channel] = true;
 					playbackStep[channel] = 0;
 					currentStep[channel] = -1;
+					reseedVoice(channel, currentSeed);
 				}
 				else {
 					capturePitch[channel] = incomingPitch;
@@ -221,12 +326,16 @@ struct Drift : Module {
 			if (risingEdge && phraseReady[channel] && !capturing[channel]) {
 				int step = playbackStep[channel] % phraseLength[channel];
 	
-				heldPitch[channel] = capturedPitch[channel][step];
-				heldGate[channel] = capturedGate[channel][step];
+				heldPitch[channel] = workingPitch[channel][step];
+				heldGate[channel] = workingGate[channel][step];
 				currentStep[channel] = step;
 	
-				playbackStep[channel] =
-					(playbackStep[channel] + 1) % phraseLength[channel];
+				playbackStep[channel]++;
+
+				if (playbackStep[channel] >= phraseLength[channel]) {
+					playbackStep[channel] = 0;
+					mutateOctave(channel);
+				}
 			}
 	
 			// While recording, Drift passes the original sequence through.
@@ -247,7 +356,11 @@ struct Drift : Module {
 			}
 	
 			// Mutation does not exist yet.
-			outputs[CHANGE_OUTPUT].setVoltage(0.f, channel);
+			float changeVoltage = changePulses[channel].process(args.sampleTime) ? 10.f : 0.f;
+			outputs[CHANGE_OUTPUT].setVoltage(changeVoltage, channel);
+
+			if (channel == 0)
+				lights[CHANGE_LIGHT].setBrightness(changeVoltage > 0.f ? 1.f : 0.f);
 	
 			lastClockHigh[channel] = clockHigh;
 		}
@@ -269,7 +382,6 @@ struct Drift : Module {
 			);
 		}
 	
-		lights[CHANGE_LIGHT].setBrightness(0.f);
 	}
 };
 
@@ -360,7 +472,7 @@ struct DriftWidget : ModuleWidget {
 		));
 		addParam(createParamCentered<DriftPaletteKnob>(
 			mm2px(Vec(36.615f, 75.629f)),
-			module, Drift::DRIFT_PARAM_PARAM
+			module, Drift::DRIFT_PARAM
 		));
 		addParam(createParamCentered<DriftPaletteKnob>(
 			mm2px(Vec(54.857f, 75.629f)),
@@ -390,15 +502,15 @@ struct DriftWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(26.986, 102.886)), module, Drift::GATE_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(45.228, 102.886)), module, Drift::CHANGE_OUTPUT));
 
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(12.84, 40.805)), module, Drift::STEP_1_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(22.167, 40.805)), module, Drift::STEP_2_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(31.494, 40.805)), module, Drift::STEP_3_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(40.821, 40.805)), module, Drift::STEP_4_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(50.148, 40.805)), module, Drift::STEP_5_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(59.475, 40.805)), module, Drift::STEP_6_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(68.803, 40.805)), module, Drift::STEP_7_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(78.13, 40.805)), module, Drift::STEP_8_LIGHT));
-		addChild(createLightCentered<MediumLight<RedLight>>(mm2px(Vec(87.128, 52.755)), module, Drift::CHANGE_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(12.84, 40.805)), module, Drift::STEP_1_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(22.167, 40.805)), module, Drift::STEP_2_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(31.494, 40.805)), module, Drift::STEP_3_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(40.821, 40.805)), module, Drift::STEP_4_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(50.148, 40.805)), module, Drift::STEP_5_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(59.475, 40.805)), module, Drift::STEP_6_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(68.803, 40.805)), module, Drift::STEP_7_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(78.13, 40.805)), module, Drift::STEP_8_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(87.128, 52.755)), module, Drift::CHANGE_LIGHT));
 	}
 };
 
