@@ -1,5 +1,5 @@
 #include "plugin.hpp"
-
+#include <cmath>
 
 struct Drift : Module {
 	enum ParamId {
@@ -28,6 +28,8 @@ struct Drift : Module {
 		OUTPUTS_LEN
 	};
 	enum LightId {
+		CAPTURE_LIGHT,
+		PHRASE_LIGHT,
 		STEP_1_LIGHT,
 		STEP_2_LIGHT,
 		STEP_3_LIGHT,
@@ -58,6 +60,8 @@ struct Drift : Module {
 		configOutput(PITCH_OUTPUT, "");
 		configOutput(GATE_OUTPUT, "");
 		configOutput(CHANGE_OUTPUT, "");
+		configLight(CAPTURE_LIGHT, "Capture status");
+		configLight(PHRASE_LIGHT, "Phrase available");
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -85,6 +89,30 @@ struct DriftArtwork : widget::TransparentWidget {
 	}
 };
 
+struct DriftPaletteKnob : app::SvgKnob {
+	DriftPaletteKnob() {
+		minAngle = -0.83f * M_PI;
+		maxAngle = 0.83f * M_PI;
+		setSvg(window::Svg::load(
+			asset::plugin(pluginInstance, "res/PaletteDensityKnob.svg")
+		));
+	}
+};
+
+struct DriftModeSelector : app::SvgSwitch {
+	DriftModeSelector() {
+		shadow->opacity = 0.f;
+		addFrame(window::Svg::load(
+			asset::plugin(pluginInstance, "res/DriftModeSelectorOctave.svg")
+		));
+		addFrame(window::Svg::load(
+			asset::plugin(pluginInstance, "res/DriftModeSelectorPalette.svg")
+		));
+		addFrame(window::Svg::load(
+			asset::plugin(pluginInstance, "res/DriftModeSelectorBoth.svg")
+		));
+	}
+};
 
 struct DriftWidget : ModuleWidget {
 	DriftWidget(Drift* module) {
@@ -99,13 +127,44 @@ struct DriftWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(18.582, 52.848)), module, Drift::CAPTURE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(38.072, 52.884)), module, Drift::RECALL_PARAM));
-		addParam(createParam<RoundBlackKnob>(mm2px(Vec(67.727, 48.755)), module, Drift::MODE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(18.372, 75.629)), module, Drift::LENGTH_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(36.615, 75.629)), module, Drift::DRIFT_PARAM_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(54.857, 75.629)), module, Drift::OCTAVES_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(73.1, 75.629)), module, Drift::SEED_PARAM));
+		const Vec captureButtonPos = mm2px(Vec(18.582f, 52.848f));
+		const Vec recallButtonPos = mm2px(Vec(38.072f, 52.884f));
+
+		addParam(createParamCentered<LEDButton>(
+			captureButtonPos, module, Drift::CAPTURE_PARAM
+		));
+		addChild(createLightCentered<MediumLight<RedLight>>(
+			captureButtonPos, module, Drift::CAPTURE_LIGHT
+		));
+
+		addParam(createParamCentered<LEDButton>(
+			recallButtonPos, module, Drift::RECALL_PARAM
+		));
+		addChild(createLightCentered<MediumLight<GreenLight>>(
+			recallButtonPos, module, Drift::PHRASE_LIGHT
+		));
+
+		addParam(createParam<DriftModeSelector>(
+			mm2px(Vec(67.727f, 48.755f)),
+			module, Drift::MODE_PARAM
+		));
+
+		addParam(createParamCentered<DriftPaletteKnob>(
+			mm2px(Vec(18.372f, 75.629f)),
+			module, Drift::LENGTH_PARAM
+		));
+		addParam(createParamCentered<DriftPaletteKnob>(
+			mm2px(Vec(36.615f, 75.629f)),
+			module, Drift::DRIFT_PARAM_PARAM
+		));
+		addParam(createParamCentered<DriftPaletteKnob>(
+			mm2px(Vec(54.857f, 75.629f)),
+			module, Drift::OCTAVES_PARAM
+		));
+		addParam(createParamCentered<DriftPaletteKnob>(
+			mm2px(Vec(73.100f, 75.629f)),
+			module, Drift::SEED_PARAM
+		));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(52.041, 13.683)), module, Drift::CLOCK_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(62.688, 13.683)), module, Drift::RESET_INPUT));
