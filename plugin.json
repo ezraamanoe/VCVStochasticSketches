@@ -18,6 +18,12 @@
       "name": "Palette",
       "description": "A polyphonic stochastic sequencer that generates weighted random pitches and gates from an external clock",
       "tags": []
+    },
+    {
+      "slug": "Drift",
+      "name": "Drift",
+      "description": "A polyphonic phrase looper with repeatable stochastic mutation",
+      "tags": []
     }
   ]
 }
