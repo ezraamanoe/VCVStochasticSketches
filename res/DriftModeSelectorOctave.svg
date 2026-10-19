@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mode 0: preserve degree and move only by octaves. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="5mm" height="8mm" viewBox="0 0 5 8">
+  <rect x=".65" y=".8" width="4" height="6.8" rx=".9" fill="#063b2b" opacity=".42"/>
+  <rect x=".3" y=".3" width="4" height="6.8" rx=".9" fill="#f3eee2" stroke="#075b40" stroke-width=".35"/>
+  <rect x=".85" y=".8" width="2.9" height="5.8" rx=".5" fill="#075b40"/>
+  <path d="M1 2.73h2.6M1 4.66h2.6" stroke="#f3eee2" stroke-width=".28" opacity=".7"/>
+  <rect x="1.08" y="1.03" width="2.45" height="1.48" rx=".35" fill="#f36b32"/>
+</svg>
