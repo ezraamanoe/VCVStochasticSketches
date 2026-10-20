@@ -171,7 +171,79 @@ struct Drift : Module {
 		reseedVoice(channel, currentSeed);
 	}
 
-	void mutateOctave(int channel) {
+	static int positiveModulo(int value, int divisor) {
+		int result = value % divisor;
+		return result < 0 ? result + divisor : result;
+	}
+
+	static int voltageToSemitone(float voltage) {
+		return (int) std::round(voltage * 12.f);
+	}
+
+	static float semitoneToVoltage(int semitone) {
+		return semitone / 12.f;
+	}
+
+	int chooseCapturedDegree(int channel) {
+		int availableDegrees[kMaxSteps];
+		int degreeCount = 0;
+
+		for (int step = 0; step < phraseLength[channel]; step++) {
+			if (capturedGate[channel][step]) {
+				int semitone = voltageToSemitone(capturedPitch[channel][step]);
+				availableDegrees[degreeCount++] = positiveModulo(semitone, 12);
+			}
+		}
+
+		if (degreeCount == 0)
+			return 0;
+
+		int index = std::min(
+			(int) (nextUniform(channel) * degreeCount),
+			degreeCount - 1
+		);
+
+		return availableDegrees[index];
+	}
+
+	int choosePaletteDegree(int channel) {
+		if (!inputs[PALETTE_LINK_INPUT].isConnected()) {
+			return chooseCapturedDegree(channel);
+		}
+
+		float totalWeight = 0.f;
+		float weights[12] = {};
+		int linkChannels = inputs[PALETTE_LINK_INPUT].getChannels();
+
+		for (int degree = 0; degree < 12; degree++) {
+			if (degree < linkChannels) {
+				weights[degree] = clamp(
+					inputs[PALETTE_LINK_INPUT].getVoltage(degree) / 10.f,
+					0.f,
+					1.f
+				);
+				totalWeight += weights[degree];
+			}
+		}
+
+		if (totalWeight <= 0.f) {
+			return chooseCapturedDegree(channel);
+		}
+
+		float choice = nextUniform(channel) * totalWeight;
+
+		for (int degree = 0; degree < 12; degree++) {
+			choice -= weights[degree];
+
+			if (choice <= 0.f) {
+				return degree;
+			}
+		}
+
+		return 11;
+	}
+
+	void mutatePhrase(int channel) {
 		if (!phraseReady[channel])
 			return;
 
@@ -179,12 +251,11 @@ struct Drift : Module {
 			+ inputVoltage(DRIFT_CV_INPUT, channel) / 10.f;
 		chance = clamp(chance, 0.f, 1.f);
 
-		// No mutation this time.
 		if (nextUniform(channel) >= chance)
 			return;
 
-		// Pick one active step from the phrase.
-		int activeSteps[8];
+		// Select one active note in the phrase to change.
+		int activeSteps[kMaxSteps];
 		int activeCount = 0;
 
 		for (int step = 0; step < phraseLength[channel]; step++) {
@@ -197,22 +268,49 @@ struct Drift : Module {
 			return;
 
 		int chosenStep = activeSteps[
-			std::min((int) (nextUniform(channel) * activeCount), activeCount - 1)
+			std::min(
+				(int) (nextUniform(channel) * activeCount),
+				activeCount - 1
+			)
 		];
 
-		int maxOctaves = (int) std::round(params[OCTAVES_PARAM].getValue());
-		if (maxOctaves <= 0)
-			return;
+		int mode = (int) std::round(params[MODE_PARAM].getValue());
+		bool changeDegree = mode == 1 || mode == 2;
+		bool changeOctave = mode == 0 || mode == 2;
 
-		int direction = nextUniform(channel) < 0.5f ? -1 : 1;
-		int amount = 1 + std::min(
-			(int) (nextUniform(channel) * maxOctaves),
-			maxOctaves - 1
+		// Always use the original capture as the reference point.
+		int originalSemitone = voltageToSemitone(
+			capturedPitch[channel][chosenStep]
+		);
+		int degree = positiveModulo(originalSemitone, 12);
+		int octave = (int) std::floor(originalSemitone / 12.f);
+
+		// Palette mode chooses a degree from Palette Link, or from the
+		// captured phrase itself if no Palette Link cable is connected.
+		if (changeDegree) {
+			degree = choosePaletteDegree(channel);
+		}
+
+		// Octave mode moves up or down by 1–N octaves.
+		int maxOctaves = (int) std::round(
+			params[OCTAVES_PARAM].getValue()
 		);
 
-		workingPitch[channel][chosenStep] += direction * amount;
+		if (changeOctave && maxOctaves > 0) {
+			int direction = nextUniform(channel) < 0.5f ? -1 : 1;
+			int distance = 1 + std::min(
+				(int) (nextUniform(channel) * maxOctaves),
+				maxOctaves - 1
+			);
 
-		changePulses[channel].trigger(1e-3f);
+			octave += direction * distance;
+		}
+
+		workingPitch[channel][chosenStep] =
+			semitoneToVoltage(octave * 12 + degree);
+
+		// 10 ms is long enough for the LED to be visible.
+		changePulses[channel].trigger(0.01f);
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -334,7 +432,7 @@ struct Drift : Module {
 
 				if (playbackStep[channel] >= phraseLength[channel]) {
 					playbackStep[channel] = 0;
-					mutateOctave(channel);
+					mutatePhrase(channel);
 				}
 			}
 	
@@ -355,7 +453,7 @@ struct Drift : Module {
 				);
 			}
 	
-			// Mutation does not exist yet.
+			// Send a short trigger whenever a mutation occurs.
 			float changeVoltage = changePulses[channel].process(args.sampleTime) ? 10.f : 0.f;
 			outputs[CHANGE_OUTPUT].setVoltage(changeVoltage, channel);
 
