@@ -334,6 +334,48 @@ struct PaletteSeedDisplay : widget::TransparentWidget {
 };
 
 struct PaletteWidget : ModuleWidget {
+		static int keyToNoteParam(int key) {
+		switch (key) {
+			case GLFW_KEY_A: return Palette::NOTE_C_PARAM;
+			case GLFW_KEY_W: return Palette::NOTE_CS_PARAM;
+			case GLFW_KEY_S: return Palette::NOTE_D_PARAM;
+			case GLFW_KEY_E: return Palette::NOTE_DS_PARAM;
+			case GLFW_KEY_D: return Palette::NOTE_E_PARAM;
+			case GLFW_KEY_F: return Palette::NOTE_F_PARAM;
+			case GLFW_KEY_T: return Palette::NOTE_FS_PARAM;
+			case GLFW_KEY_G: return Palette::NOTE_G_PARAM;
+			case GLFW_KEY_Y: return Palette::NOTE_GS_PARAM;
+			case GLFW_KEY_H: return Palette::NOTE_A_PARAM;
+			case GLFW_KEY_U: return Palette::NOTE_AS_PARAM;
+			case GLFW_KEY_J: return Palette::NOTE_B_PARAM;
+			default: return -1;
+		}
+	}
+
+	void onHoverKey(const HoverKeyEvent& e) override {
+		// Preserve Rack's normal module shortcuts first.
+		ModuleWidget::onHoverKey(e);
+
+		if (e.isConsumed() || e.action != GLFW_PRESS || e.mods != 0 || !module) {
+			return;
+		}
+
+		int paramId = keyToNoteParam(e.key);
+		if (paramId < 0) {
+			return;
+		}
+
+		auto* palette = static_cast<Palette*>(module);
+		auto* param = palette->getParamQuantity(paramId);
+
+		// Toggle between disabled and fully enabled.
+		float nextValue = param->getValue() > 0.f ? 0.f : 1.f;
+		param->setValue(nextValue);
+
+		// Prevent Rack from using this recognised key elsewhere.
+		e.consume(this);
+	}
+	
 	PaletteWidget(Palette* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Palette.svg")));
