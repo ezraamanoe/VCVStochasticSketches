@@ -27,6 +27,7 @@ struct Palette : Module {
 	enum OutputId {
 		PITCH_OUTPUT,
 		GATE_OUTPUT,
+		PALETTE_LINK_OUTPUT,
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -128,6 +129,7 @@ struct Palette : Module {
 		configInput(RESET_INPUT, "Reset");
 		configOutput(PITCH_OUTPUT, "Pitch (1 V/oct)");
 		configOutput(GATE_OUTPUT, "Gate");
+		configOutput(PALETTE_LINK_OUTPUT, "Palette Link note weights");
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -136,6 +138,20 @@ struct Palette : Module {
 		if (seed != currentSeed) {
 		currentSeed = seed;
 		reseedAll(seed);
+		}
+
+		const int noteParams[12] = {
+			NOTE_C_PARAM, NOTE_CS_PARAM, NOTE_D_PARAM, NOTE_DS_PARAM,
+			NOTE_E_PARAM, NOTE_F_PARAM, NOTE_FS_PARAM, NOTE_G_PARAM,
+			NOTE_GS_PARAM, NOTE_A_PARAM, NOTE_AS_PARAM, NOTE_B_PARAM
+		};
+
+		// One output port carries 12 polyphonic channels: C through B.
+		outputs[PALETTE_LINK_OUTPUT].setChannels(12);
+
+		for (int note = 0; note < 12; note++) {
+			float weight = clamp(params[noteParams[note]].getValue(), 0.f, 1.f);
+			outputs[PALETTE_LINK_OUTPUT].setVoltage(weight * 10.f, note);
 		}
 
 		int channels = inputs[CLOCK_INPUT].getChannels();
@@ -471,6 +487,7 @@ struct PaletteWidget : ModuleWidget {
 
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.427, 72.36)), module, Palette::PITCH_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.427, 87.567)), module, Palette::GATE_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.427f, 99.625f)), module, Palette::PALETTE_LINK_OUTPUT));
 
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(87.718, 41.981)), module, Palette::NOTE_B_LIGHT_LIGHT));
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(83.19, 44.467)), module, Palette::NOTE_AS_LIGHT_LIGHT));
