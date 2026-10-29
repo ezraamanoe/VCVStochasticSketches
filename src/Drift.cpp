@@ -207,12 +207,13 @@ struct Drift : Module {
 	}
 
 	int choosePaletteDegree(int channel) {
+		// With no LINK cable, preserve the current fallback behaviour.
 		if (!inputs[PALETTE_LINK_INPUT].isConnected()) {
 			return chooseCapturedDegree(channel);
 		}
 
-		float totalWeight = 0.f;
 		float weights[12] = {};
+		float totalWeight = 0.f;
 		int linkChannels = inputs[PALETTE_LINK_INPUT].getChannels();
 
 		for (int degree = 0; degree < 12; degree++) {
@@ -226,21 +227,31 @@ struct Drift : Module {
 			}
 		}
 
+		// A connected but empty Palette has no valid mutation choices.
 		if (totalWeight <= 0.f) {
-			return chooseCapturedDegree(channel);
+			return -1;
 		}
 
 		float choice = nextUniform(channel) * totalWeight;
+		int lastAvailableDegree = -1;
 
 		for (int degree = 0; degree < 12; degree++) {
-			choice -= weights[degree];
+			// Never select a zero-weight note.
+			if (weights[degree] <= 0.f) {
+				continue;
+			}
 
-			if (choice <= 0.f) {
+			lastAvailableDegree = degree;
+
+			if (choice < weights[degree]) {
 				return degree;
 			}
+
+			choice -= weights[degree];
 		}
 
-		return 11;
+		// Safe fallback for floating-point edge cases.
+		return lastAvailableDegree;
 	}
 
 	void mutatePhrase(int channel) {
@@ -288,7 +299,15 @@ struct Drift : Module {
 		// Palette mode chooses a degree from Palette Link, or from the
 		// captured phrase itself if no Palette Link cable is connected.
 		if (changeDegree) {
-			degree = choosePaletteDegree(channel);
+			int paletteDegree = choosePaletteDegree(channel);
+
+			// LINK is connected but has no enabled notes:
+			// do not mutate the phrase.
+			if (paletteDegree < 0) {
+			return;
+			}
+
+			degree = paletteDegree;
 		}
 
 		// Octave mode moves up or down by 1–N octaves.
