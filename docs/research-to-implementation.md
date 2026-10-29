@@ -17,6 +17,7 @@ Palette and Drift are the current practical response to this question.
 | Seeded randomness in Palette | Monro | Palette uses a fixed Seed so a random sequence can be repeated from the same starting conditions. |
 | Seeded randomness in Drift | Monro | Drift can repeat the same mutation decisions when it has the same captured phrase, Seed, settings, and Reset or Recall points. |
 | Palette note-weight sliders | Stochastic Inspiration Generator and ProbKey | The user shapes random note selection instead of accepting completely uncontrolled randomness. |
+| Palette motif memory | Music Thing Turing Machine and Monro | Palette stores pitch-and-gate events in an eight-step buffer. Memory controls whether a slot is reused or regenerated, moving from fresh randomness towards a locked motif. |
 | Drift’s captured and working phrases | Cope | Drift keeps an original phrase and creates variations from it, rather than replacing it with unrelated random notes. |
 | Palette Link | Cope | Palette shares a current harmonic probability map with Drift, so Drift mutations can remain related to Palette’s note preferences. |
 | Clear controls and visible state | Esler | The user should be able to understand and shape the algorithm while performing, rather than treating it as a black box. |
@@ -91,17 +92,21 @@ Its musical behaviour can move between:
 - material that changes slowly
 - a locked repeating loop
 
-A future Palette Memory feature could explore similar behaviour using stored pitch and gate events.
+Palette now explores similar behaviour using stored pitch and gate events.
 
 This would not be a direct Turing Machine clone. The original module uses a binary shift-register design, while Palette works with musical pitch classes, gates, polyphony, note weights, and Seeds.
 
-The planned Memory control would decide how likely a stored event is replayed instead of regenerated:
+The implemented Memory control decides how likely a stored event is replayed instead of regenerated:
 
 ```text
 Low memory     = mostly new notes
 Medium memory  = a phrase that slowly changes
 High memory    = a stable repeating phrase
 ```
+
+Palette uses a fixed eight-event buffer for each polyphonic voice. At `100%` Memory, the buffer fills during the first eight clock events and repeats from the ninth. At `0%`, Palette writes new events into the same buffer but never reuses them. This is useful for comparison because the module can move between fresh randomness, gradual change, and a stable loop without changing its harmonic weights or Seed.
+
+The implementation builds successfully. Focused Rack testing is still needed for the 0%, 100%, intermediate Memory, Reset, and polyphonic cases.
 
 ## Shapiro and Huber: Markov-style note context
 
@@ -192,7 +197,7 @@ The goal is not to automate composition completely. The user should remain part 
 | Now | Document Palette Link and test its edge cases | Cope and Esler |
 | Next | MIDI chord input for Palette | Esler: performer control |
 | Next | Drift Context mode | Cope and Shapiro and Huber |
-| Later | Palette Memory control | Turing Machine inspiration |
+| Now | Test Palette Memory at 0%, 100%, and intermediate values | Turing Machine inspiration and Monro |
 | Later | Euclidean gate mode | Toussaint |
 | Later | Cellular-automata mutation mask | Burraston and Edmonds |
 | Ongoing | Listen to and evaluate patches | Monro, Pexton, and Milicevic |

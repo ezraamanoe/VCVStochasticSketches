@@ -18,7 +18,8 @@ VCV Rack
             │
             ├── Palette
             │     ├── stochastic pitch and gate generation
-            │     ├── note weights, Density, and Seed
+            │     ├── note weights, Density, Memory, and Seed
+            │     ├── per-voice eight-event motif buffer
             │     └── Palette Link output
             │
             └── Drift
@@ -55,19 +56,21 @@ Each module has a model, such as `modelPalette` or `modelDrift`. When Rack start
 
 Palette is a polyphonic stochastic pitch and gate sequencer. It does not generate audio itself.
 
-It receives a clock signal and, on each rising clock edge, decides whether a note should happen. Density controls the chance of an event. If an event happens, Palette chooses one of the twelve chromatic notes using the slider weights.
+It receives a clock signal and, on each rising clock edge, reads the current position in an eight-event motif buffer. Memory controls whether Palette reuses the stored event in that position. If it creates a fresh event instead, Density controls the chance of an event and the note sliders determine its pitch class.
 
 ```text
 Clock input
     ↓
-Density decides whether an event happens
+Reuse stored event using Memory
+    ├── yes → stored pitch + gate state
+    └── no  → Density event decision → weighted note selection
     ↓
-Weighted random note selection
+Store fresh event in the current motif slot
     ↓
 Pitch CV + Gate output
 ```
 
-Palette has a separate seeded random generator for each voice. This means that the same Seed, clock pattern, note weights, Density value, and Reset point will produce the same sequence again.
+Palette has a separate seeded random generator and eight-event motif buffer for each voice. This means that the same Seed, clock pattern, note weights, Density value, Memory value, and Reset point will produce the same sequence again.
 
 Palette’s main outputs are:
 
@@ -126,7 +129,7 @@ The full channel and voltage specification is documented in `palette-link-protoc
 
 Both modules are designed to work with polyphonic cables.
 
-Palette keeps separate random-generator, trigger, selected-note, and active-note state for each voice. Drift keeps separate captured phrases, working phrases, playback positions, and random-generator state for each channel.
+Palette keeps separate random-generator, trigger, selected-note, active-note, and motif-buffer state for each voice. Drift keeps separate captured phrases, working phrases, playback positions, and random-generator state for each channel.
 
 The interface mostly shows information for the first voice or channel. The audio and CV behaviour can still be polyphonic even when the visual feedback is not.
 

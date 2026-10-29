@@ -28,6 +28,7 @@ Palette Link is documented separately in `palette-link-protocol.md`.
 | Control | Purpose |
 | --- | ---|
 | `DENSITY` | The chance that a clock edge produces a note event. |
+| `MEMORY` | The chance that Palette reuses the event stored at the current motif position instead of creating a new one. |
 | `SEED` | Selects one of 999 repeatable random sequences. |
 | `C` to `B` note sliders | Set the relative chance of each chromatic pitch class being selected. |
 
@@ -40,17 +41,42 @@ For example, if C has a weight of `1.0` and E has a weight of `0.5`, C is twice 
 On every rising Clock edge, Palette follows this process:
 
 ```text
-1. Read Density.
-2. Randomly decide whether a note event should happen.
-3. If an event happens, read all twelve note-slider weights.
-4. Choose one note using weighted random selection.
-5. Send its pitch as 1 V/octave CV.
-6. Send a 10 V gate while the incoming Clock is high.
+1. Move to the current position in an eight-event memory buffer.
+2. If that position already contains an event, use Memory to decide whether to reuse it.
+3. If the event is not reused, use Density to decide whether a new note event should happen.
+4. If a new event happens, choose one note using the twelve slider weights.
+5. Store the resulting pitch and gate state in the current memory position.
+6. Send pitch as 1 V/octave CV and send a 10 V gate while the incoming Clock is high.
 ```
 
 At `100%` Density, Palette creates an event on every clock edge. At `0%` Density, it does not intentionally create events.
 
 The gate is based on the incoming clock pulse. Palette does not create its own fixed gate length.
+
+## Motif memory
+
+Palette has an eight-event memory buffer for each polyphonic voice. Each slot stores:
+
+- the selected chromatic pitch class
+- whether that clock event contained a gate or a rest
+
+Memory controls whether Palette reuses the current stored slot or replaces it with a newly generated event.
+
+| Memory value | Behaviour |
+| --- | --- |
+| `0%` | Every clock event is freshly generated. Palette still writes the result into the buffer, but never reads it back. |
+| `1–99%` | Stored events are sometimes reused and sometimes replaced. This creates motifs that gradually change. |
+| `100%` | Palette fills the eight slots once, then repeats that eight-event pitch and gate motif. |
+
+The first eight events after Reset, or after changing Seed, are always new because the buffer is empty. At `100%` Memory, the loop begins from the ninth clock event.
+
+The eight LEDs show the Memory buffer for voice one:
+
+- off: the slot is empty
+- dim: the slot contains a stored event
+- bright: the current slot
+
+The LEDs currently show buffer position and stored state. They do not yet visually distinguish a stored event being reused from a stored event being replaced.
 
 ## Pitch output
 
@@ -77,6 +103,7 @@ With the same:
 - Seed
 - clock pattern
 - Density value
+- Memory value
 - note-slider weights
 - Reset points
 
@@ -97,6 +124,8 @@ Each voice has its own:
 - selected note
 - active-note state
 - seeded random generator
+- eight pitch-and-gate memory slots
+- memory position
 
 This means polyphonic voices generate related but independent stochastic note sequences.
 
@@ -147,9 +176,9 @@ It does not send:
 
 Instead, it sends the harmonic probability map. Drift can use this map to constrain its own phrase mutations to the notes and note probabilities currently selected in Palette.
 
-## Known limitation
+## No active note weights
 
-If every note slider is set to zero, Palette has no valid note to select. This should result in no note event. The current implementation needs an additional check to make sure it does not leave an old selected pitch active when no valid note weights are available.
+If every note slider is set to zero, Palette has no valid pitch to choose. In this case, a freshly generated event becomes a rest rather than reusing an old pitch. A stored event can still replay until it is replaced or the module is Reset.
 
 ## Future work
 
@@ -157,7 +186,6 @@ Possible future improvements to Palette include:
 
 - MIDI chord input from an external MIDI keyboard.
 - Velocity-sensitive note weights.
-- Turing Machine-inspired note memory.
 - Euclidean rhythm mode as an alternative to independent Density probability.
 - Better visual feedback for polyphonic voices.
-- A clearer no-active-notes behaviour when every slider is zero.
+- Visual feedback which distinguishes a reused memory event from a newly written event.

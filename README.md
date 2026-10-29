@@ -14,9 +14,10 @@ The visual design is inspired by the [Teenage Engineering EP–40 riddim](https:
 
 On every rising clock edge, Palette:
 
-1. Uses **Density** to decide whether an event should occur.
-2. Selects one note from the chromatic palette according to the twelve note-weight sliders.
-3. Outputs the selected pitch as 1 V/octave CV and a 10 V gate.
+1. Uses **Memory** to decide whether to reuse the current stored motif event.
+2. If the event is new, uses **Density** to decide whether an event should occur.
+3. Selects one note from the chromatic palette according to the twelve note-weight sliders.
+4. Outputs the selected pitch as 1 V/octave CV and a 10 V gate.
 
 The sliders are weights, not on/off switches: a higher slider makes that note more likely to be selected relative to the other notes.
 
@@ -25,16 +26,24 @@ The sliders are weights, not on/off switches: a higher slider makes that note mo
 | Control / connection | Purpose |
 | --- | --- |
 | **Density** | Probability of a note event at each clock edge. Fully clockwise means an event on every clock edge. |
+| **Memory** | Probability of reusing the current stored motif event. At 100%, Palette repeats an eight-event motif after it has been filled. |
 | **Seed** | Selects one of 999 repeatable random sequences. The display shows the current seed. |
 | **Note sliders** | Set the relative probability of C through B. |
 | **CLOCK input** | Receives a clock or trigger signal. One clock channel drives one Palette voice. |
 | **RESET input** | Restarts the current seeded sequence. A mono reset signal resets all active voices. |
 | **PITCH output** | 1 V/octave pitch CV. Connect to an oscillator's V/OCT input. |
 | **GATE output** | 10 V gate signal. Connect to an envelope's gate input. |
+| **LINK output** | Twelve-channel polyphonic CV containing Palette's current C–B note weights. Connect to Drift's PALETTE LINK input. |
 
 ### Repeatable randomness
 
-Palette uses its own seeded random generator rather than Rack's shared random source. With the same Seed, clock pattern, density, note weights, and Reset points, it produces the same sequence again. This makes chance-based ideas repeatable, comparable, and usable in a musical performance.
+Palette uses its own seeded random generator rather than Rack's shared random source. With the same Seed, clock pattern, Density, Memory, note weights, and Reset points, it produces the same sequence again. This makes chance-based ideas repeatable, comparable, and usable in a musical performance.
+
+### Motif memory
+
+Palette stores pitch and gate states in an eight-event buffer for every voice. At `0%` Memory it creates fresh events as normal. At intermediate values it sometimes reuses a stored event and sometimes replaces it, creating a motif that gradually changes. At `100%`, it fills the eight slots once and then loops them.
+
+The eight LEDs show the buffer for the first voice: off means empty, dim means stored, and bright means the current position.
 
 ### Demo patch: seeded Cmaj9
 
@@ -84,7 +93,7 @@ On each completed phrase loop, Drift:
 | **PITCH input** | Receives incoming polyphonic 1 V/octave pitch CV to capture. |
 | **GATE input** | Receives incoming polyphonic gates to capture. |
 | **DRIFT CV input** | Adds CV control to the Drift mutation probability. `0–10 V` corresponds to 0–100% additional mutation chance. |
-| **PALETTE LINK input** | Reserved for a future twelve-channel connection from Palette containing C–B note weights. |
+| **PALETTE LINK input** | Receives Palette’s twelve-channel C–B note-weight map. It constrains pitch-class selection in Palette and Both mutation modes. |
 | **PITCH output** | Outputs the stored and mutated polyphonic 1 V/octave pitch CV. |
 | **GATE output** | Outputs the stored polyphonic gate pattern. |
 | **MUTATION CHANGE output** | Outputs a short 10 V trigger whenever Drift changes a phrase step. |
@@ -94,7 +103,7 @@ On each completed phrase loop, Drift:
 | Mode | Behaviour |
 | --- | --- |
 | **Octave** | Keeps the captured note degree and moves it up or down by the selected octave range. |
-| **Palette** | Changes the note degree while keeping its captured octave. Until Palette Link is implemented, Drift chooses from the note degrees already present in the captured phrase. |
+| **Palette** | Changes the note degree while keeping its captured octave. With LINK connected, Drift uses Palette’s note weights; otherwise it chooses from note degrees present in the captured phrase. |
 | **Both** | Changes both the note degree and octave. |
 
 ### Repeatable mutation
