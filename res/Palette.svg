@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- The visible artwork is PaletteBase.png. This transparent SVG supplies Rack's
      required vector panel dimensions: 18HP = 91.44 mm wide. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="91.44mm" height="128.5mm" viewBox="0 0 91.44 128.5">
+<svg xmlns="http://www.w3.org/2000/svg" width="152.4mm" height="128.5mm" viewBox="0 0 152.4 128.5">
   <rect width="152.4" height="128.55" fill="none"/>
 </svg>
