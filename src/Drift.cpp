@@ -90,10 +90,11 @@ struct Drift : Module {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configButton(CAPTURE_PARAM, "Capture phrase");
 		configButton(RECALL_PARAM, "Recall captured phrase");
-		configSwitch(MODE_PARAM, 0.f, 2.f, 2.f, "Mutation mode", {
+		configSwitch(MODE_PARAM, 0.f, 3.f, 2.f, "Mutation mode", {
 			"Octave: keep the note degree",
 			"Palette: choose another allowed note",
-			"Both: palette note and octave jump"
+			"Both: palette note and octave jump",
+			"Context: follow captured pitch-class relationships"
 		});
 		configParam(LENGTH_PARAM, 1.f, 8.f, 8.f, "Capture length", " steps");
 		getParamQuantity(LENGTH_PARAM)->snapEnabled = true;
@@ -360,6 +361,62 @@ struct Drift : Module {
 		return lastAvailableDegree;
 	}
 
+	int previousActiveDegree(int channel, int step) {
+		// The phrase loops, so the note before step 1 may be its final active
+		// note. With a one-note phrase, the note is its own context.
+		for (int offset = 1; offset <= phraseLength[channel]; offset++) {
+			int previousStep = positiveModulo(
+				step - offset,
+				phraseLength[channel]
+			);
+
+			if (workingGate[channel][previousStep]) {
+				return pitchClassFromVoltage(
+					workingPitch[channel][previousStep]
+				);
+			}
+		}
+
+		return -1;
+	}
+
+	int chooseContextDegree(int channel, int step) {
+		int previousDegree = previousActiveDegree(channel, step);
+		if (previousDegree < 0) {
+			return -1;
+		}
+
+		int totalCount = 0;
+		for (int degree = 0; degree < 12; degree++) {
+			totalCount += transitionCounts[channel][previousDegree][degree];
+		}
+
+		// The current context has never appeared in the captured phrase, so
+		// Drift has no learned relationship to follow.
+		if (totalCount <= 0) {
+			return -1;
+		}
+
+		float choice = nextUniform(channel) * totalCount;
+		int lastAvailableDegree = -1;
+
+		for (int degree = 0; degree < 12; degree++) {
+			int count = transitionCounts[channel][previousDegree][degree];
+			if (count <= 0) {
+				continue;
+			}
+
+			lastAvailableDegree = degree;
+			if (choice < count) {
+				return degree;
+			}
+
+			choice -= count;
+		}
+
+		return lastAvailableDegree;
+	}
+
 	void mutatePhrase(int channel) {
 		if (!phraseReady[channel])
 			return;
@@ -392,7 +449,7 @@ struct Drift : Module {
 		];
 
 		int mode = (int) std::round(params[MODE_PARAM].getValue());
-		bool changeDegree = mode == 1 || mode == 2;
+		bool changeDegree = mode == 1 || mode == 2 || mode == 3;
 		bool changeOctave = mode == 0 || mode == 2;
 
 		// Always use the original capture as the reference point.
@@ -404,16 +461,19 @@ struct Drift : Module {
 
 		// Palette mode chooses a degree from Palette Link, or from the
 		// captured phrase itself if no Palette Link cable is connected.
+		// Context mode instead follows the relationships learned at Capture.
 		if (changeDegree) {
-			int paletteDegree = choosePaletteDegree(channel);
+			int newDegree = mode == 3
+				? chooseContextDegree(channel, chosenStep)
+				: choosePaletteDegree(channel);
 
-			// LINK is connected but has no enabled notes:
-			// do not mutate the phrase.
-			if (paletteDegree < 0) {
-			return;
+			// A disabled Palette Link or an unknown Context means Drift has no
+			// safe degree choice, so it leaves the phrase unchanged.
+			if (newDegree < 0) {
+				return;
 			}
 
-			degree = paletteDegree;
+			degree = newDegree;
 		}
 
 		// Octave mode moves up or down by 1–N octaves.
@@ -653,6 +713,9 @@ struct DriftModeSelector : app::SvgSwitch {
 		addFrame(window::Svg::load(
 			asset::plugin(pluginInstance, "res/DriftModeSelectorBoth.svg")
 		));
+		addFrame(window::Svg::load(
+			asset::plugin(pluginInstance, "res/DriftModeSelectorContext.svg")
+		));
 	}
 };
 
@@ -669,8 +732,8 @@ struct DriftWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		const Vec captureButtonPos = mm2px(Vec(18.582f, 52.848f));
-		const Vec recallButtonPos = mm2px(Vec(38.072f, 52.884f));
+		const Vec captureButtonPos = mm2px(Vec(109.575f, 32.668f));
+		const Vec recallButtonPos = mm2px(Vec(129.066f, 32.705f));
 
 		addParam(createParamCentered<LEDButton>(captureButtonPos, module, Drift::CAPTURE_PARAM));
 		addChild(createLightCentered<MediumLight<RedLight>>(captureButtonPos, module, Drift::CAPTURE_LIGHT));
@@ -678,33 +741,33 @@ struct DriftWidget : ModuleWidget {
 		addParam(createParamCentered<LEDButton>(recallButtonPos, module, Drift::RECALL_PARAM));
 		addChild(createLightCentered<MediumLight<GreenLight>>(recallButtonPos, module, Drift::PHRASE_LIGHT));
 
-		addParam(createParam<DriftModeSelector>(mm2px(Vec(67.727f, 48.755f)), module, Drift::MODE_PARAM));
+		addParam(createParam<DriftModeSelector>(mm2px(Vec(118.013f, 43.031f)), module, Drift::MODE_PARAM));
 
-		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(18.372f, 75.629f)), module, Drift::LENGTH_PARAM));
-		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(36.615f, 75.629f)), module, Drift::DRIFT_PARAM));
-		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(54.857f, 75.629f)), module, Drift::OCTAVES_PARAM));
-		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(73.100f, 75.629f)), module, Drift::SEED_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(48.852f, 75.629f)), module, Drift::LENGTH_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(67.095f, 75.629f)), module, Drift::DRIFT_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(85.337f, 75.629f)), module, Drift::OCTAVES_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(103.580f, 75.629f)), module, Drift::SEED_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(52.040f, 13.700f)), module, Drift::CLOCK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(62.687f, 13.700f)), module, Drift::RESET_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(73.335f, 13.700f)), module, Drift::PITCH_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(83.982f, 13.700f)), module, Drift::GATE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(63.47, 103.187)), module, Drift::PALETTE_LINK_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(80.744, 103.187)), module, Drift::DRIFT_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(113.883f, 13.384f)), module, Drift::CLOCK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(124.531f, 13.384f)), module, Drift::RESET_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(135.178f, 13.384f)), module, Drift::PITCH_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(145.825f, 13.384f)), module, Drift::GATE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(93.950f, 103.187f)), module, Drift::PALETTE_LINK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(111.224f, 103.187f)), module, Drift::DRIFT_CV_INPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.743, 102.886)), module, Drift::PITCH_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(26.986, 102.886)), module, Drift::GATE_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(45.228, 102.886)), module, Drift::CHANGE_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(39.223f, 102.886f)), module, Drift::PITCH_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.466f, 102.886f)), module, Drift::GATE_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(75.708f, 102.886f)), module, Drift::CHANGE_OUTPUT));
 
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(12.84, 40.805)), module, Drift::STEP_1_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(22.167, 40.805)), module, Drift::STEP_2_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(31.494, 40.805)), module, Drift::STEP_3_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(40.821, 40.805)), module, Drift::STEP_4_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(50.148, 40.805)), module, Drift::STEP_5_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(59.475, 40.805)), module, Drift::STEP_6_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(68.803, 40.805)), module, Drift::STEP_7_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(78.13, 40.805)), module, Drift::STEP_8_LIGHT));
-		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(87.128, 52.755)), module, Drift::CHANGE_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(12.840f, 43.980f)), module, Drift::STEP_1_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(22.167f, 43.980f)), module, Drift::STEP_2_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(31.494f, 43.980f)), module, Drift::STEP_3_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(40.821f, 43.980f)), module, Drift::STEP_4_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(50.148f, 43.980f)), module, Drift::STEP_5_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(59.475f, 43.980f)), module, Drift::STEP_6_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(68.803f, 43.980f)), module, Drift::STEP_7_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(78.130f, 43.980f)), module, Drift::STEP_8_LIGHT));
+		addChild(createLightCentered<MediumLight<GreenLight>>(mm2px(Vec(141.551f, 47.031f)), module, Drift::CHANGE_LIGHT));
 	}
 };
 
