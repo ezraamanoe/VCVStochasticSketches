@@ -53,6 +53,11 @@ struct Drift : Module {
 	float workingPitch[PORT_MAX_CHANNELS][kMaxSteps] = {};
 	bool workingGate[PORT_MAX_CHANNELS][kMaxSteps] = {};
 
+	// transitionCounts[channel][from][to] records how often one captured
+	// pitch class was followed by another. This is built after Capture and
+	// will later be used by Drift's Context mutation mode.
+	int transitionCounts[PORT_MAX_CHANNELS][12][12] = {};
+
 	random::Xoroshiro128Plus rngs[PORT_MAX_CHANNELS];
 	dsp::PulseGenerator changePulses[PORT_MAX_CHANNELS];
 	int currentSeed = -1;
@@ -182,6 +187,107 @@ struct Drift : Module {
 
 	static float semitoneToVoltage(int semitone) {
 		return semitone / 12.f;
+	}
+
+	static int pitchClassFromVoltage(float voltage) {
+		return positiveModulo(voltageToSemitone(voltage), 12);
+	}
+
+	void clearTransitions(int channel) {
+		for (int from = 0; from < 12; from++) {
+			for (int to = 0; to < 12; to++) {
+				transitionCounts[channel][from][to] = 0;
+			}
+		}
+	}
+
+	void buildTransitions(int channel) {
+		clearTransitions(channel);
+
+		// Rests do not become states in the model. The active notes are treated
+		// as one compact sequence, even when rests occur between them.
+		int degrees[kMaxSteps];
+		int degreeCount = 0;
+
+		for (int step = 0; step < phraseLength[channel]; step++) {
+			if (capturedGate[channel][step]) {
+				degrees[degreeCount++] = pitchClassFromVoltage(
+					capturedPitch[channel][step]
+				);
+			}
+		}
+
+		if (degreeCount == 0) {
+			return;
+		}
+
+		// Include the closing transition from the final active note back to the
+		// first, because Drift plays captured phrases as loops.
+		for (int index = 0; index < degreeCount; index++) {
+			int from = degrees[index];
+			int to = degrees[(index + 1) % degreeCount];
+			transitionCounts[channel][from][to]++;
+		}
+	}
+
+	json_t* dataToJson() override {
+		json_t* rootJ = json_object();
+		json_t* channelsJ = json_array();
+
+		for (int channel = 0; channel < PORT_MAX_CHANNELS; channel++) {
+			json_t* matrixJ = json_array();
+
+			for (int from = 0; from < 12; from++) {
+				json_t* rowJ = json_array();
+				for (int to = 0; to < 12; to++) {
+					json_array_append_new(
+						rowJ,
+						json_integer(transitionCounts[channel][from][to])
+					);
+				}
+				json_array_append_new(matrixJ, rowJ);
+			}
+
+			json_array_append_new(channelsJ, matrixJ);
+		}
+
+		json_object_set_new(rootJ, "transitionCounts", channelsJ);
+		return rootJ;
+	}
+
+	void dataFromJson(json_t* rootJ) override {
+		for (int channel = 0; channel < PORT_MAX_CHANNELS; channel++) {
+			clearTransitions(channel);
+		}
+
+		json_t* channelsJ = json_object_get(rootJ, "transitionCounts");
+		if (!json_is_array(channelsJ)) {
+			return;
+		}
+
+		for (int channel = 0;
+			channel < PORT_MAX_CHANNELS && channel < (int) json_array_size(channelsJ);
+			channel++) {
+			json_t* matrixJ = json_array_get(channelsJ, channel);
+			if (!json_is_array(matrixJ)) {
+				continue;
+			}
+
+			for (int from = 0; from < 12 && from < (int) json_array_size(matrixJ); from++) {
+				json_t* rowJ = json_array_get(matrixJ, from);
+				if (!json_is_array(rowJ)) {
+					continue;
+				}
+
+				for (int to = 0; to < 12 && to < (int) json_array_size(rowJ); to++) {
+					json_t* countJ = json_array_get(rowJ, to);
+					if (json_is_integer(countJ)) {
+						transitionCounts[channel][from][to] =
+							std::max(0, (int) json_integer_value(countJ));
+					}
+				}
+			}
+		}
 	}
 
 	int chooseCapturedDegree(int channel) {
@@ -401,6 +507,7 @@ struct Drift : Module {
 				captureStep[channel] = 0;
 				playbackStep[channel] = 0;
 				currentStep[channel] = -1;
+				clearTransitions(channel);
 	
 				capturePitch[channel] = incomingPitch;
 				captureGateSeen[channel] = incomingGate;
@@ -431,6 +538,7 @@ struct Drift : Module {
 					phraseReady[channel] = true;
 					playbackStep[channel] = 0;
 					currentStep[channel] = -1;
+					buildTransitions(channel);
 					reseedVoice(channel, currentSeed);
 				}
 				else {
@@ -564,54 +672,23 @@ struct DriftWidget : ModuleWidget {
 		const Vec captureButtonPos = mm2px(Vec(18.582f, 52.848f));
 		const Vec recallButtonPos = mm2px(Vec(38.072f, 52.884f));
 
-		addParam(createParamCentered<LEDButton>(
-			captureButtonPos, module, Drift::CAPTURE_PARAM
-		));
-		addChild(createLightCentered<MediumLight<RedLight>>(
-			captureButtonPos, module, Drift::CAPTURE_LIGHT
-		));
+		addParam(createParamCentered<LEDButton>(captureButtonPos, module, Drift::CAPTURE_PARAM));
+		addChild(createLightCentered<MediumLight<RedLight>>(captureButtonPos, module, Drift::CAPTURE_LIGHT));
 
-		addParam(createParamCentered<LEDButton>(
-			recallButtonPos, module, Drift::RECALL_PARAM
-		));
-		addChild(createLightCentered<MediumLight<GreenLight>>(
-			recallButtonPos, module, Drift::PHRASE_LIGHT
-		));
+		addParam(createParamCentered<LEDButton>(recallButtonPos, module, Drift::RECALL_PARAM));
+		addChild(createLightCentered<MediumLight<GreenLight>>(recallButtonPos, module, Drift::PHRASE_LIGHT));
 
-		addParam(createParam<DriftModeSelector>(
-			mm2px(Vec(67.727f, 48.755f)),
-			module, Drift::MODE_PARAM
-		));
+		addParam(createParam<DriftModeSelector>(mm2px(Vec(67.727f, 48.755f)), module, Drift::MODE_PARAM));
 
-		addParam(createParamCentered<DriftPaletteKnob>(
-			mm2px(Vec(18.372f, 75.629f)),
-			module, Drift::LENGTH_PARAM
-		));
-		addParam(createParamCentered<DriftPaletteKnob>(
-			mm2px(Vec(36.615f, 75.629f)),
-			module, Drift::DRIFT_PARAM
-		));
-		addParam(createParamCentered<DriftPaletteKnob>(
-			mm2px(Vec(54.857f, 75.629f)),
-			module, Drift::OCTAVES_PARAM
-		));
-		addParam(createParamCentered<DriftPaletteKnob>(
-			mm2px(Vec(73.100f, 75.629f)),
-			module, Drift::SEED_PARAM
-		));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(18.372f, 75.629f)), module, Drift::LENGTH_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(36.615f, 75.629f)), module, Drift::DRIFT_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(54.857f, 75.629f)), module, Drift::OCTAVES_PARAM));
+		addParam(createParamCentered<DriftPaletteKnob>(mm2px(Vec(73.100f, 75.629f)), module, Drift::SEED_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(
-			mm2px(Vec(52.040f, 13.700f)), module, Drift::CLOCK_INPUT
-		));
-		addInput(createInputCentered<PJ301MPort>(
-			mm2px(Vec(62.687f, 13.700f)), module, Drift::RESET_INPUT
-		));
-		addInput(createInputCentered<PJ301MPort>(
-			mm2px(Vec(73.335f, 13.700f)), module, Drift::PITCH_INPUT
-		));
-		addInput(createInputCentered<PJ301MPort>(
-			mm2px(Vec(83.982f, 13.700f)), module, Drift::GATE_INPUT
-		));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(52.040f, 13.700f)), module, Drift::CLOCK_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(62.687f, 13.700f)), module, Drift::RESET_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(73.335f, 13.700f)), module, Drift::PITCH_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(83.982f, 13.700f)), module, Drift::GATE_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(63.47, 103.187)), module, Drift::PALETTE_LINK_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(80.744, 103.187)), module, Drift::DRIFT_CV_INPUT));
 
