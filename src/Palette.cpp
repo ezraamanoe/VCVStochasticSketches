@@ -334,48 +334,109 @@ struct PaletteSeedDisplay : widget::TransparentWidget {
 };
 
 struct PaletteWidget : ModuleWidget {
-		static int keyToNoteParam(int key) {
+	
+	bool keyboardHeld[12] = {};
+
+	static int keyToNote(int key) {
 		switch (key) {
-			case GLFW_KEY_A: return Palette::NOTE_C_PARAM;
-			case GLFW_KEY_W: return Palette::NOTE_CS_PARAM;
-			case GLFW_KEY_S: return Palette::NOTE_D_PARAM;
-			case GLFW_KEY_E: return Palette::NOTE_DS_PARAM;
-			case GLFW_KEY_D: return Palette::NOTE_E_PARAM;
-			case GLFW_KEY_F: return Palette::NOTE_F_PARAM;
-			case GLFW_KEY_T: return Palette::NOTE_FS_PARAM;
-			case GLFW_KEY_G: return Palette::NOTE_G_PARAM;
-			case GLFW_KEY_Y: return Palette::NOTE_GS_PARAM;
-			case GLFW_KEY_H: return Palette::NOTE_A_PARAM;
-			case GLFW_KEY_U: return Palette::NOTE_AS_PARAM;
-			case GLFW_KEY_J: return Palette::NOTE_B_PARAM;
+			case GLFW_KEY_A: return 0;   // C
+			case GLFW_KEY_W: return 1;   // C#
+			case GLFW_KEY_S: return 2;   // D
+			case GLFW_KEY_E: return 3;   // D#
+			case GLFW_KEY_D: return 4;   // E
+			case GLFW_KEY_F: return 5;   // F
+			case GLFW_KEY_T: return 6;   // F#
+			case GLFW_KEY_G: return 7;   // G
+			case GLFW_KEY_Y: return 8;   // G#
+			case GLFW_KEY_H: return 9;   // A
+			case GLFW_KEY_U: return 10;  // A#
+			case GLFW_KEY_J: return 11;  // B
 			default: return -1;
 		}
 	}
 
+	static int noteParamId(int note) {
+	static const int noteParams[12] = {
+		Palette::NOTE_C_PARAM,
+		Palette::NOTE_CS_PARAM,
+		Palette::NOTE_D_PARAM,
+		Palette::NOTE_DS_PARAM,
+		Palette::NOTE_E_PARAM,
+		Palette::NOTE_F_PARAM,
+		Palette::NOTE_FS_PARAM,
+		Palette::NOTE_G_PARAM,
+		Palette::NOTE_GS_PARAM,
+		Palette::NOTE_A_PARAM,
+		Palette::NOTE_AS_PARAM,
+		Palette::NOTE_B_PARAM
+	};
+		return noteParams[note];
+	}
+
+	bool hasHeldKeys() const {
+		for (bool held : keyboardHeld) {
+			if (held) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void setKeyboardNote(int note, float value) {
+		if (!module || note < 0 || note >= 12) {
+			return;
+		}
+
+		module->getParamQuantity(noteParamId(note))->setValue(value);
+	}
+
 	void onHoverKey(const HoverKeyEvent& e) override {
-		// Preserve Rack's normal module shortcuts first.
 		ModuleWidget::onHoverKey(e);
 
-		if (e.isConsumed() || e.action != GLFW_PRESS || e.mods != 0 || !module) {
+		if (e.isConsumed() || !module || e.mods != 0) {
 			return;
 		}
 
-		int paramId = keyToNoteParam(e.key);
-		if (paramId < 0) {
+		int note = keyToNote(e.key);
+		if (note < 0) {
 			return;
 		}
 
-		auto* palette = static_cast<Palette*>(module);
-		auto* param = palette->getParamQuantity(paramId);
+		if (e.action == GLFW_PRESS) {
+			// No keys held means this is the first note of a new chord.
+			// Replace the old Palette, then add this note.
+			bool newChord = !hasHeldKeys();
 
-		// Toggle between disabled and fully enabled.
-		float nextValue = param->getValue() > 0.f ? 0.f : 1.f;
-		param->setValue(nextValue);
+			if (newChord) {
+				for (int i = 0; i < 12; i++) {
+					setKeyboardNote(i, 0.f);
+				}
+			}
 
-		// Prevent Rack from using this recognised key elsewhere.
+			keyboardHeld[note] = true;
+			setKeyboardNote(note, 1.f);
+		}
+		else if (e.action == GLFW_RELEASE) {
+			// Releasing keys does not change Palette.
+			// The captured chord remains active.
+			keyboardHeld[note] = false;
+		}
+		else {
+			return;
+		}
+
 		e.consume(this);
 	}
-	
+
+	void onLeave(const LeaveEvent& e) override {
+		// Forget physical held keys without changing the stored chord.
+		for (int note = 0; note < 12; note++) {
+			keyboardHeld[note] = false;
+		}
+
+		ModuleWidget::onLeave(e);
+	}
+
 	PaletteWidget(Palette* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Palette.svg")));
