@@ -2,7 +2,7 @@
 
 This document keeps track of how the reading relates to Stochastic Sketches.
 
-I am not treating every paper as a feature to copy. Some sources suggest specific algorithms, while others help me decide what makes the project musically useful, controllable, and worth evaluating.
+I'm not treating every paper as a feature to copy. Some sources suggest specific algorithms, others help me decide what makes the project musically useful, controllable, and worth evaluating.
 
 ## Working research question
 
@@ -38,7 +38,7 @@ When Drift captures a phrase, it could count which pitch classes tend to follow 
 
 For example, if a captured phrase often moves from C to E or G, a mutation after C would prefer E or G. The result would still change, but it would feel more related to the captured phrase.
 
-This would be a small first-order Markov-style model. It would not be machine learning, composer imitation, or analysis of external music. It would only use the phrase currently stored in Drift.
+This would be a small first-order Markov-style model. It wouldn't be machine learning, composer imitation, or analysis of external music. It would only use the phrase currently stored in Drift.
 
 ## Monro: emergence and seeded processes
 
@@ -136,7 +136,7 @@ This is a later feature because the current capture, mutation, Link, and testing
 
 ## Pexton: levels of description
 
-Pexton’s discussion of emergence is useful for explaining the project in the report.
+Pexton’s discussion of emergence is useful for explaining the project.
 
 Stochastic Sketches can be described at several levels:
 
@@ -154,7 +154,7 @@ Musical level:
 melody, repetition, variation, tension, recognition, performer control
 ```
 
-This gives the report a way to explain how simple technical rules can become a more meaningful musical system when connected together.
+This gives a way to explain how simple technical rules can become a more meaningful musical system when connected together.
 
 ## Milicevic: complexity is not automatically musical value
 
@@ -201,4 +201,4 @@ The goal is not to automate composition completely. The user should remain part 
 
 The Stochastic Inspiration Generator and ProbKey are practical module inspirations for Palette. Teenage Engineering’s EP-40 riddim is a visual design inspiration for Palette and Drift.
 
-These references influence the interface and overall direction, but the academic sources above provide the main basis for the report’s discussion of algorithms, emergence, musical identity, and evaluation.
+These references influence the interface and overall direction, but the academic sources above provide the main basis for the discussion of algorithms, emergence, musical identity, and evaluation.
