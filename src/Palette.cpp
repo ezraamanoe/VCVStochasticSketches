@@ -20,6 +20,7 @@ struct Palette : Module {
 		// Keep new parameters at the end so existing saved Palette patches
 		// keep their original Density, Seed, and note-slider values.
 		MEMORY_PARAM,
+		MEMORY_LENGTH_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -54,21 +55,31 @@ struct Palette : Module {
 		MEMORY_6_LIGHT,
 		MEMORY_7_LIGHT,
 		MEMORY_8_LIGHT,
+		MEMORY_9_LIGHT,
+		MEMORY_10_LIGHT,
+		MEMORY_11_LIGHT,
+		MEMORY_12_LIGHT,
+		MEMORY_13_LIGHT,
+		MEMORY_14_LIGHT,
+		MEMORY_15_LIGHT,
+		MEMORY_16_LIGHT,
 		LIGHTS_LEN
 	};
 
 	static constexpr int MAX_VOICES = 16;
-	static constexpr int MEMORY_STEPS = 8;
+	static constexpr int MAX_MEMORY_STEPS = 16;
+	static constexpr int DEFAULT_MEMORY_STEPS = 8;
 
 	dsp::SchmittTrigger clockTriggers[MAX_VOICES];
 	dsp::SchmittTrigger resetTriggers[MAX_VOICES];
 	int selectedNotes[MAX_VOICES] = {};
 	bool noteActive[MAX_VOICES] = {};
-	int memoryPitches[MAX_VOICES][MEMORY_STEPS] = {};
-	bool memoryGates[MAX_VOICES][MEMORY_STEPS] = {};
-	bool memoryValid[MAX_VOICES][MEMORY_STEPS] = {};
+	int memoryPitches[MAX_VOICES][MAX_MEMORY_STEPS] = {};
+	bool memoryGates[MAX_VOICES][MAX_MEMORY_STEPS] = {};
+	bool memoryValid[MAX_VOICES][MAX_MEMORY_STEPS] = {};
 	int memoryPositions[MAX_VOICES] = {};
 	int currentMemorySteps[MAX_VOICES] = {};
+	int activeMemoryLengths[MAX_VOICES] = {};
 	random::Xoroshiro128Plus rngs[MAX_VOICES];
 	int currentSeed = -1;
 	
@@ -92,20 +103,31 @@ struct Palette : Module {
 		memoryPositions[voice] = 0;
 		currentMemorySteps[voice] = 0;
 
-		for (int step = 0; step < MEMORY_STEPS; step++) {
+		for (int step = 0; step < MAX_MEMORY_STEPS; step++) {
 			memoryPitches[voice][step] = 0;
 			memoryGates[voice][step] = false;
 			memoryValid[voice][step] = false;
 		}
 	}
 	
-	void reseedAll(int seed) {
+	void reseedAll(int seed, int memoryLength) {
 		for (int voice = 0; voice < MAX_VOICES; voice++) {
 			reseedVoice(voice, seed);
 			selectedNotes[voice] = 0;
 			noteActive[voice] = false;
+			activeMemoryLengths[voice] = memoryLength;
 			clearMemoryVoice(voice);
 		}
+	}
+
+	int requestedMemoryLength() {
+		const int lengthOptions[3] = {4, 8, 16};
+		int option = clamp(
+			(int) std::round(params[MEMORY_LENGTH_PARAM].getValue()),
+			0,
+			2
+		);
+		return lengthOptions[option];
 	}
 
 	bool chooseNote(int voice) {
@@ -157,6 +179,11 @@ struct Palette : Module {
 		configParam(NOTE_A_PARAM, 0.f, 1.f, 0.f, "A");
 		configParam(NOTE_B_PARAM, 0.f, 1.f, 0.f, "B");
 		configParam(MEMORY_PARAM, 0.f, 1.f, 0.f, "Memory", "%", 0.f, 100.f);
+		configSwitch(MEMORY_LENGTH_PARAM, 0.f, 2.f, 1.f, "Memory length", {
+			"4 events",
+			"8 events",
+			"16 events"
+		});
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
 		configOutput(PITCH_OUTPUT, "Pitch (1 V/oct)");
@@ -166,10 +193,11 @@ struct Palette : Module {
 
 	void process(const ProcessArgs& args) override {
 		int seed = static_cast<int>(std::round(params[SEED_PARAM].getValue()));
+		int requestedLength = requestedMemoryLength();
 
 		if (seed != currentSeed) {
-		currentSeed = seed;
-		reseedAll(seed);
+			currentSeed = seed;
+			reseedAll(seed, requestedLength);
 		}
 
 		const int noteParams[12] = {
@@ -219,10 +247,20 @@ struct Palette : Module {
 				reseedVoice(voice, currentSeed);
 				selectedNotes[voice] = 0;
 				noteActive[voice] = false;
+				activeMemoryLengths[voice] = requestedLength;
 				clearMemoryVoice(voice);
 			}
 
 			if (clockTriggers[voice].process(clockVoltage)) {
+				// Apply a changed length only once this voice has completed its
+				// current motif. Reset applies a new length immediately instead.
+				if (memoryPositions[voice] == 0
+					&& activeMemoryLengths[voice] != requestedLength) {
+					activeMemoryLengths[voice] = requestedLength;
+					clearMemoryVoice(voice);
+				}
+
+				int memoryLength = activeMemoryLengths[voice];
 				int step = memoryPositions[voice];
 				bool reuseStoredEvent = false;
 
@@ -250,7 +288,7 @@ struct Palette : Module {
 				}
 
 				currentMemorySteps[voice] = step;
-				memoryPositions[voice] = (step + 1) % MEMORY_STEPS;
+				memoryPositions[voice] = (step + 1) % memoryLength;
 			}
 
 			outputs[GATE_OUTPUT].setVoltage(
@@ -276,7 +314,8 @@ struct Palette : Module {
 			lights[noteLights[note]].setBrightness(isPlaying ? 1.f : 0.f);
 		}
 
-		for (int step = 0; step < MEMORY_STEPS; step++) {
+		// Four- and eight-event motifs leave the remaining indicators dark.
+		for (int step = 0; step < MAX_MEMORY_STEPS; step++) {
 			float brightness = 0.f;
 			if (memoryValid[0][step]) {
 				brightness = currentMemorySteps[0] == step ? 1.f : 0.15f;
@@ -530,8 +569,9 @@ struct PaletteWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(5, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 20, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		// Main controls: Memory, Seed, and Density share the same orange knob.
+		// Main controls share the same orange knob.
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(96.411f, 80.074f)), module, Palette::MEMORY_PARAM));
+		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(96.411f, 96.012f)), module, Palette::MEMORY_LENGTH_PARAM));
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(110.465f, 80.074f)), module, Palette::SEED_PARAM));
 		addParam(createParamCentered<PaletteDensityKnob>(mm2px(Vec(124.519f, 80.074f)), module, Palette::DENSITY_PARAM));
 
@@ -556,15 +596,23 @@ struct PaletteWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(143.479f, 86.447f)), module, Palette::GATE_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(143.479f, 102.738f)), module, Palette::PALETTE_LINK_OUTPUT));
 
-		// Eight slots: off means empty, dim means stored, and bright means current.
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(14.710f, 52.755f)), module, Palette::MEMORY_1_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(19.709f, 52.464f)), module, Palette::MEMORY_2_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(24.709f, 52.464f)), module, Palette::MEMORY_3_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(29.709f, 52.518f)), module, Palette::MEMORY_4_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(34.708f, 52.518f)), module, Palette::MEMORY_5_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(39.708f, 52.518f)), module, Palette::MEMORY_6_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.708f, 52.518f)), module, Palette::MEMORY_7_LIGHT));
-		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(49.707f, 52.518f)), module, Palette::MEMORY_8_LIGHT));
+		// Sixteen slots: off means empty, dim means stored, and bright means current.
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(14.710f, 50.639f)), module, Palette::MEMORY_1_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(19.709f, 50.347f)), module, Palette::MEMORY_2_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(24.709f, 50.347f)), module, Palette::MEMORY_3_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(29.709f, 50.401f)), module, Palette::MEMORY_4_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(34.708f, 50.401f)), module, Palette::MEMORY_5_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(39.708f, 50.401f)), module, Palette::MEMORY_6_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.708f, 50.401f)), module, Palette::MEMORY_7_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(49.707f, 50.401f)), module, Palette::MEMORY_8_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(14.700f, 54.879f)), module, Palette::MEMORY_9_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(19.699f, 54.587f)), module, Palette::MEMORY_10_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(24.699f, 54.587f)), module, Palette::MEMORY_11_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(29.699f, 54.641f)), module, Palette::MEMORY_12_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(34.698f, 54.641f)), module, Palette::MEMORY_13_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(39.698f, 54.641f)), module, Palette::MEMORY_14_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(44.697f, 54.641f)), module, Palette::MEMORY_15_LIGHT));
+		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(49.697f, 54.641f)), module, Palette::MEMORY_16_LIGHT));
 
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(132.853f, 41.938f)), module, Palette::NOTE_B_LIGHT_LIGHT));
 		addChild(createLightCentered<SmallLight<GreenLight>>(mm2px(Vec(127.773f, 44.424f)), module, Palette::NOTE_AS_LIGHT_LIGHT));
