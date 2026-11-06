@@ -15,11 +15,12 @@ Palette and Drift are the current practical response to this question.
 | Project feature | Research connection | How it is used |
 | --- | --- | --- |
 | Seeded randomness in Palette | Monro | Palette uses a fixed Seed so a random sequence can be repeated from the same starting conditions. |
-| Seeded randomness in Drift | Monro | Drift can repeat the same mutation decisions when it has the same captured phrase, Seed, settings, and Reset or Recall points. |
+| Seeded randomness in Drift | Monro | Drift can repeat the same mutation decisions when it has the same captured phrase, Seed, settings, clock pattern, and Recall point. |
 | Palette note-weight sliders | Stochastic Inspiration Generator and ProbKey | The user shapes random note selection instead of accepting completely uncontrolled randomness. |
 | Palette motif memory | Music Thing Turing Machine and Monro | Palette stores pitch-and-gate events in an eight-step buffer. Memory controls whether a slot is reused or regenerated, moving from fresh randomness towards a locked motif. |
 | Drift’s captured and working phrases | Cope | Drift keeps an original phrase and creates variations from it, rather than replacing it with unrelated random notes. |
 | Palette Link | Cope | Palette shares a current harmonic probability map with Drift, so Drift mutations can remain related to Palette’s note preferences. |
+| Drift Context mode | Cope and Shapiro and Huber | Drift learns pitch-class transitions from a captured phrase and uses them as weighted choices during context-aware mutation. |
 | Clear controls and visible state | Esler | The user should be able to understand and shape the algorithm while performing, rather than treating it as a black box. |
 
 ## Cope: musical identity and recombination
@@ -33,13 +34,13 @@ This is already reflected in Drift:
 - It creates mutations in a separate working phrase.
 - Recall restores the original material.
 
-The main future feature from this idea is **Context mode**.
+This idea is implemented as Drift’s **Context mode**.
 
-When Drift captures a phrase, it could count which pitch classes tend to follow each other. During mutation, it would choose a replacement note from the notes that normally follow the previous note in the captured phrase.
+When Drift captures a phrase, it counts which pitch classes tend to follow each other. During a Context mutation, it chooses a replacement note from the notes that normally follow the previous active note in the captured phrase.
 
 For example, if a captured phrase often moves from C to E or G, a mutation after C would prefer E or G. The result would still change, but it would feel more related to the captured phrase.
 
-This would be a small first-order Markov-style model. It wouldn't be machine learning, composer imitation, or analysis of external music. It would only use the phrase currently stored in Drift.
+This is a small first-order Markov-style model. It is not machine learning, composer imitation, or analysis of external music. It only uses the phrase currently stored in Drift.
 
 ## Monro: emergence and seeded processes
 
@@ -110,7 +111,7 @@ The implementation builds successfully. Focused Rack testing is still needed for
 
 ## Shapiro and Huber: Markov-style note context
 
-Shapiro and Huber’s Markov-chain discussion supports the planned Context mode for Drift.
+Shapiro and Huber’s Markov-chain discussion supports the implemented Context mode for Drift.
 
 A first-order Markov model looks only at the current or previous state when selecting the next state. In Drift, this means:
 
@@ -118,9 +119,9 @@ A first-order Markov model looks only at the current or previous state when sele
 previous pitch class → likely following pitch classes
 ```
 
-Drift would build this small relationship map from the captured phrase. It would then use it only when Context mode is selected.
+Drift builds this small relationship map from the captured phrase and uses it only when Context mode is selected. It reads the previous active pitch class in the working phrase, then makes a seeded weighted selection from the captured transition counts for that pitch class. Context keeps the captured octave and leaves a step unchanged if there is no known continuation.
 
-This feature would improve recognisability without needing a large dataset or external training material.
+This feature is intended to support recognisability without needing a large dataset or external training material. Its musical effect still needs to be evaluated with controlled patches and listening comparisons.
 
 ## Burraston and Edmonds: cellular automata
 
@@ -196,7 +197,7 @@ The goal is not to automate composition completely. The user should remain part 
 | Now | Test Palette and Drift baseline behaviour | Monro and Milicevic |
 | Now | Document Palette Link and test its edge cases | Cope and Esler |
 | Next | MIDI chord input for Palette | Esler: performer control |
-| Next | Drift Context mode | Cope and Shapiro and Huber |
+| Now | Test Drift Context mode with known transition phrases and listening comparisons | Cope and Shapiro and Huber |
 | Now | Test Palette Memory at 0%, 100%, and intermediate values | Turing Machine inspiration and Monro |
 | Later | Euclidean gate mode | Toussaint |
 | Later | Cellular-automata mutation mask | Burraston and Edmonds |
