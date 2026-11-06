@@ -103,11 +103,14 @@ Loop working phrase
 Mutate selected steps at phrase boundaries
 ```
 
-Drift has three mutation modes:
+Drift has four mutation modes:
 
 - **Octave**: keeps the original pitch class but changes octave.
 - **Palette**: chooses a new pitch class from Palette Link, or from captured notes when LINK is disconnected.
 - **Both**: changes both pitch class and octave.
+- **Context**: chooses a new pitch class using note-to-note relationships learned from the captured phrase while keeping the captured octave.
+
+During Capture, Drift converts active notes to pitch classes and records how often each class is followed by another in a `12 × 12` transition table. The final active note is also linked back to the first because the phrase loops. Context mode reads the previous active note in the working phrase, then makes a seeded weighted choice from that pitch class’s recorded continuations. If no continuation is known, the selected step is left unchanged.
 
 Drift outputs Pitch, Gate, and a short Mutation Change trigger.
 
@@ -129,7 +132,7 @@ The full channel and voltage specification is documented in `palette-link-protoc
 
 Both modules are designed to work with polyphonic cables.
 
-Palette keeps separate random-generator, trigger, selected-note, active-note, and motif-buffer state for each voice. Drift keeps separate captured phrases, working phrases, playback positions, and random-generator state for each channel.
+Palette keeps separate random-generator, trigger, selected-note, active-note, and motif-buffer state for each voice. Drift keeps separate captured phrases, working phrases, pitch-class transition tables, playback positions, and random-generator state for each channel.
 
 The interface mostly shows information for the first voice or channel. The audio and CV behaviour can still be polyphonic even when the visual feedback is not.
 

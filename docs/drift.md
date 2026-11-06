@@ -31,7 +31,7 @@ Drift is designed to work especially well with Palette. Palette can generate a s
 | --- | --- |
 | `CAPTURE` | Arms Drift to record a new phrase. |
 | `RECALL` | Restores the original captured phrase and removes its mutations. |
-| `MUTATION MODE` | Selects Octave, Palette, or Both mutation behaviour. |
+| `MUTATION MODE` | Selects Octave, Palette, Both, or Context mutation behaviour. |
 | `CAPTURE LENGTH` | Sets the phrase length from 1 to 8 steps. |
 | `DRIFT` | Sets the probability that a mutation happens at the end of each phrase loop. |
 | `OCT. JUMP` | Sets the largest possible octave jump from 0 to 2 octaves. |
@@ -62,6 +62,10 @@ Drift stores two versions of every phrase:
 Mutations only change the working phrase. The original capture remains available as a reference.
 
 Pressing Recall copies the captured phrase back into the working phrase, resets playback to the first step, and reseeds the random generator. This gives a reliable way to return to the original phrase.
+
+During Capture, Drift also builds a pitch-class transition table for each polyphonic channel. It counts how often one active pitch class is followed by another, including the transition from the final active note back to the first note. Rests are ignored rather than treated as a pitch class.
+
+The transition table is stored in Rack patch data. Captured and working phrase events are not yet saved, so a newly opened patch must capture a phrase before Drift can play or mutate it.
 
 ## Playback
 
@@ -121,6 +125,16 @@ If Palette Link is disconnected, Drift falls back to choosing from pitch classes
 
 Both mode changes the pitch class using Palette Link or captured-note fallback, then also makes an octave jump.
 
+### Context
+
+Context mode changes a pitch class using the note-to-note relationships learned during Capture.
+
+When Drift mutates a step, it finds the previous active note in the looping **working phrase**, reads that note’s pitch class, and uses its row in the captured transition table. A following pitch class with a higher recorded count is more likely to be chosen.
+
+For example, a captured phrase of `C – E – C – G` records both `C → E` and `C → G`. A Context mutation after C can therefore choose E or G, rather than any chromatic note.
+
+Context keeps the selected step’s captured octave, so it does not use `OCT. JUMP` or Palette Link. If the previous pitch class has no recorded continuations, Drift safely leaves the selected step unchanged.
+
 ## Palette Link behaviour
 
 Palette Link gives Drift a harmonic context without sending an exact melody.
@@ -153,7 +167,7 @@ With the same:
 - Mutation Mode
 - Octave Jump
 - Palette Link state and note weights
-- Reset and Recall points
+- Recall points
 
 Drift produces the same mutations again.
 
@@ -178,7 +192,6 @@ The interface shows capture state, phrase state, playback position, and mutation
 
 Possible future improvements to Drift include:
 
-- Context mode using note-to-note relationships learned from the captured phrase.
 - A cellular-automata mutation mask to control which phrase steps are allowed to change.
 - More detailed visual feedback for polyphonic channels.
 - Saving captured phrases in Rack patch data.

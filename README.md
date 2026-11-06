@@ -74,7 +74,7 @@ On each completed phrase loop, Drift:
 
 1. Uses **Drift** to decide whether a mutation should occur.
 2. Selects one active step in the captured phrase.
-3. Changes the step’s octave, note degree, or both, depending on the selected Mutation Mode.
+3. Changes the step’s octave, note degree, both, or a note degree guided by the captured phrase’s transitions, depending on the selected Mutation Mode.
 4. Outputs a short 10 V trigger from **Mutation Change** when a mutation occurs.
 
 ### Controls and connections
@@ -85,7 +85,7 @@ On each completed phrase loop, Drift:
 | **Recall** | Restores the original captured phrase and restarts its repeatable mutation sequence. |
 | **Capture Length** | Sets the number of steps to record, from 1 to 8. |
 | **Drift** | Probability of a mutation at the end of each phrase loop. Fully clockwise means Drift attempts a mutation on every loop. |
-| **Mutation Mode** | Chooses whether mutation changes an octave, a note degree, or both. |
+| **Mutation Mode** | Chooses whether mutation changes an octave, a note degree, both, or follows note-to-note relationships learned during Capture. |
 | **Octaves** | Sets the largest possible octave jump. |
 | **Seed** | Selects one of 999 repeatable mutation sequences. |
 | **CLOCK input** | Receives the clock used for capture and phrase playback. |
@@ -105,10 +105,11 @@ On each completed phrase loop, Drift:
 | **Octave** | Keeps the captured note degree and moves it up or down by the selected octave range. |
 | **Palette** | Changes the note degree while keeping its captured octave. With LINK connected, Drift uses Palette’s note weights; otherwise it chooses from note degrees present in the captured phrase. |
 | **Both** | Changes both the note degree and octave. |
+| **Context** | Changes the note degree using pitch-class transitions learned from the captured phrase. It keeps the captured octave and does not use Palette Link. |
 
 ### Repeatable mutation
 
-Drift uses a seeded random generator for each polyphonic voice. With the same original phrase, Seed, settings, and clock pattern, it produces the same series of mutations again.
+Drift uses a seeded random generator for each polyphonic voice. With the same original phrase, Seed, settings, clock pattern, and Recall point, it produces the same series of mutations again.
 
 This is important because it means a useful evolving phrase is not lost. You can experiment with Drift, return to the original phrase with Recall, and reproduce the same changes from the same Seed.
 
@@ -119,7 +120,9 @@ https://github.com/user-attachments/assets/dd0ee77d-c6d5-49f4-bfd9-dd5138ab242a
 - Set Drift Capture Length to 4 or 8.
 - Press Capture and let Drift record one full phrase.
 - Set Drift low at first, such as 20–30%.
-- Choose Octave, Palette, or Both mutation mode.
+- Choose Octave, Palette, Both, or Context mutation mode.
 - Increase Drift gradually to hear the phrase become less predictable while remaining connected to the original idea.
+
+Context works best with a phrase containing more than one possible continuation. For example, a captured `C – E – C – G` phrase teaches Drift that C can lead to E or G.
 
 
